@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Reader at Work">
+<title>Reader at Work — Kelime Okuyucu</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg: #f5f3ee;
+  --surface: #ffffff;
+  --surface2: #f0ede6;
+  --surface3: #e4e0d8;
+  --border: rgba(0,0,0,0.09);
+  --accent: #c8a010;
+  --accent2: #2a9d8f;
+  --accent3: #e63946;
+  --text: #1a1814;
+  --text-dim: rgba(26,24,20,0.58);
+  --text-dimmer: rgba(26,24,20,0.32);
+  --verb: #1d6fa3;
+  --adj: #1a7a3f;
+  --adv: #9d2a72;
+  --conj: #6b3fa0;
+  --other: #b05a12;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%; background: var(--bg);
+  color: var(--text); font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+/* ── SPLASH ── */
+#splash {
+  position: fixed; inset: 0; z-index: 999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  animation: splashOut 0.4s ease 1.8s both;
+}
+.splash-logo { font-family: 'Playfair Display', serif; font-size: 2.4rem; color: var(--accent); }
+.splash-sub { font-size: 0.8rem; color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase; }
+.splash-bar { width: 120px; height: 2px; background: var(--surface3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.splash-fill { height: 100%; background: var(--accent); animation: fill 1.6s ease both; }
+
+@keyframes splashOut { to { opacity: 0; pointer-events: none; } }
+@keyframes fill { from { width: 0; } to { width: 100%; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ── APP SHELL ── */
+#app {
+  display: flex; flex-direction: column;
+  height: 100dvh;
+  opacity: 0; animation: fadeUp 0.4s ease 2s both;
+}
+
+/* ── TOP BAR ── */
+.top-bar {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  padding-top: calc(var(--safe-top) + 8px);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+
+.menu-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; flex-shrink: 0;
+}
+.menu-btn span { width: 16px; height: 1.5px; background: var(--text-dim); display: block; border-radius: 1px; }
+
+.top-title {
+  flex: 1; min-width: 0;
+}
+.top-title .unit-num { font-size: 0.65rem; color: var(--accent); font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
+.top-title .unit-name { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.notebook-btn {
+  flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 1rem; position: relative;
+}
+.nb-count {
+  position: absolute; top: -4px; right: -4px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); color: #000;
+  font-size: 0.6rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  display: none;
+}
+
+/* ── READING AREA ── */
+#readingArea {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 20px 16px 80px;
+  position: relative;
+}
+
+.unit-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.unit-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem; color: var(--accent);
+  line-height: 1.2; margin-bottom: 4px;
+}
+.unit-header .meta { font-size: 0.72rem; color: var(--text-dimmer); }
+
+.reading-text {
+  font-size: 1rem; line-height: 1.85;
+  color: var(--text); font-family: 'Playfair Display', serif;
+  font-weight: 400;
+}
+
+.word {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 1px;
+  transition: background 0.15s, color 0.15s;
+  display: inline;
+}
+.word:hover { background: rgba(232,197,71,0.15); color: var(--accent); }
+.word.active { background: var(--accent); color: #000; font-weight: 600; }
+.word.saved-verb { border-bottom: 2px solid var(--verb); }
+.word.saved-adj { border-bottom: 2px solid var(--adj); }
+.word.saved-adv { border-bottom: 2px solid var(--adv); }
+.word.saved-conj { border-bottom: 2px solid var(--conj); }
+.word.saved-other { border-bottom: 2px solid var(--other); }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  flex-shrink: 0;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  padding: 8px 14px;
+  padding-bottom: calc(var(--safe-bottom) + 8px);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex; gap: 8px;
+}
+
+.nav-btn {
+  flex: 1; padding: 10px 8px;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-dim);
+  font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.nav-btn .ni { font-size: 1.1rem; }
+.nav-btn:active { transform: scale(0.96); }
+.nav-btn.active { background: var(--accent); color: #000; border-color: transparent; }
+
+/* ── WORD POPUP ── */
+#popup {
+  position: fixed; inset: 0; z-index: 200;
+  pointer-events: none;
+  display: flex; align-items: flex-end;
+}
+
+.popup-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.6);
+  opacity: 0; transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+.popup-card {
+  position: relative; width: 100%;
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 18px;
+  padding-bottom: calc(var(--safe-bottom) + 20px);
+  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.34,1.2,0.64,1);
+  pointer-events: none;
+  border-top: 1px solid var(--border);
+}
+
+#popup.open .popup-backdrop { opacity: 1; pointer-events: all; }
+#popup.open .popup-card { transform: translateY(0); pointer-events: all; }
+
+.popup-drag { width: 36px; height: 4px; background: var(--surface3); border-radius: 2px; margin: 0 auto 16px; }
+
+.popup-word {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem; color: var(--text); margin-bottom: 4px;
+}
+
+.popup-type {
+  display: inline-block; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 1.5px; padding: 3px 10px; border-radius: 20px; margin-bottom: 12px;
+}
+.type-verb { background: rgba(29,111,163,0.12); color: var(--verb); }
+.type-adj { background: rgba(26,122,63,0.12); color: var(--adj); }
+.type-adv { background: rgba(157,42,114,0.12); color: var(--adv); }
+.type-conj { background: rgba(107,63,160,0.12); color: var(--conj); }
+.type-other { background: rgba(176,90,18,0.12); color: var(--other); }
+.type-loading { background: var(--surface2); color: var(--text-dim); }
+
+.popup-loading {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-dim); font-size: 0.85rem;
+  padding: 12px 0;
+}
+.loading-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease infinite; }
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+.popup-tr {
+  font-size: 1.15rem; font-weight: 600; color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.popup-syn {
+  font-size: 0.8rem; color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.popup-syn strong { color: var(--text-dimmer); font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase; }
+
+.popup-mnemonic {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  font-size: 0.83rem; color: var(--text-dim);
+  font-style: italic; line-height: 1.5;
+  margin-bottom: 14px;
+}
+.popup-mnemonic::before { content: '💡 '; font-style: normal; }
+
+.popup-actions { display: flex; gap: 8px; }
+
+.save-btn {
+  flex: 1; padding: 12px;
+  border-radius: 12px; border: none;
+  background: var(--accent); color: #000;
+  font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; transition: all 0.15s;
+}
+.save-btn:active { transform: scale(0.97); }
+.save-btn.saved { background: var(--surface3); color: var(--text-dim); }
+
+.close-btn {
+  width: 46px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-dim);
+  font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
+.popup-error { color: var(--accent3); font-size: 0.85rem; padding: 8px 0; }
+
+/* ── UNIT LIST DRAWER ── */
+#drawer {
+  position: fixed; inset: 0; z-index: 300;
+  pointer-events: none;
+}
+.drawer-backdrop {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.7);
+  opacity: 0; transition: opacity 0.25s; pointer-events: none;
+}
+.drawer-panel {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  width: min(320px, 85vw);
+  background: var(--surface);
+  transform: translateX(-100%); transition: transform 0.3s ease;
+  pointer-events: none; overflow-y: auto;
+  padding-top: calc(var(--safe-top) + 0px);
+  display: flex; flex-direction: column;
+}
+#drawer.open .drawer-backdrop { opacity: 1; pointer-events: all; }
+#drawer.open .drawer-panel { transform: translateX(0); pointer-events: all; }
+
+.drawer-header {
+  padding: 20px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.drawer-header h3 { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--accent); }
+.drawer-header p { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+
+.drawer-list { flex: 1; padding: 8px 0; }
+
+.drawer-item {
+  padding: 12px 16px;
+  cursor: pointer; transition: background 0.15s;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.drawer-item:hover, .drawer-item:active { background: var(--surface2); }
+.drawer-item.active-unit { background: rgba(232,197,71,0.08); }
+.drawer-item .di-num { font-size: 0.65rem; color: var(--accent); font-weight: 700; letter-spacing: 1px; }
+.drawer-item .di-title { font-size: 0.9rem; color: var(--text); font-weight: 500; margin-top: 1px; }
+.drawer-item .di-count { font-size: 0.68rem; color: var(--text-dimmer); margin-top: 2px; }
+
+/* ── NOTEBOOK VIEW ── */
+#notebook {
+  position: fixed; inset: 0; z-index: 250;
+  background: var(--bg);
+  transform: translateX(100%); transition: transform 0.3s ease;
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-top);
+}
+#notebook.open { transform: translateX(0); }
+
+.nb-header {
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.nb-back {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-dim); font-size: 1rem;
+  flex-shrink: 0;
+}
+.nb-header h2 { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--accent); flex: 1; }
+.nb-clear {
+  font-size: 0.72rem; color: var(--accent3); cursor: pointer;
+  padding: 4px 8px; border-radius: 6px; font-weight: 600;
+}
+
+.nb-tabs {
+  display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 8px; gap: 0;
+}
+.nb-tab {
+  flex: 1; padding: 10px 4px;
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--text-dim); cursor: pointer; text-align: center;
+  border: none; background: none; position: relative;
+  transition: color 0.15s;
+}
+.nb-tab::after {
+  content: ''; position: absolute; bottom: 0; left: 15%; right: 15%;
+  height: 2px; border-radius: 2px; transform: scaleX(0); transition: transform 0.2s;
+}
+.nb-tab.active-verb { color: var(--verb); }
+.nb-tab.active-verb::after { background: var(--verb); transform: scaleX(1); }
+.nb-tab.active-adj { color: var(--adj); }
+.nb-tab.active-adj::after { background: var(--adj); transform: scaleX(1); }
+.nb-tab.active-adv { color: var(--adv); }
+.nb-tab.active-adv::after { background: var(--adv); transform: scaleX(1); }
+.nb-tab.active-conj { color: var(--conj); }
+.nb-tab.active-conj::after { background: var(--conj); transform: scaleX(1); }
+.nb-tab.active-other { color: var(--other); }
+.nb-tab.active-other::after { background: var(--other); transform: scaleX(1); }
+
+.nb-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 14px 80px; }
+
+.nb-empty {
+  text-align: center; padding: 40px 20px;
+  color: var(--text-dimmer); font-size: 0.85rem;
+}
+.nb-empty .ne-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+.nb-card {
+  background: var(--surface);
+  border-radius: 14px; padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  animation: fadeUp 0.3s ease both;
+  position: relative;
+}
+.nb-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; border-radius: 14px 0 0 14px;
+}
+.nb-card.t-verb::before { background: var(--verb); }
+.nb-card.t-adj::before { background: var(--adj); }
+.nb-card.t-adv::before { background: var(--adv); }
+.nb-card.t-conj::before { background: var(--conj); }
+.nb-card.t-other::before { background: var(--other); }
+
+.nc-word { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--text); }
+.nc-tr { font-size: 0.88rem; color: var(--accent); font-weight: 600; margin-top: 2px; }
+.nc-syn { font-size: 0.75rem; color: var(--text-dimmer); margin-top: 4px; }
+.nc-tip { font-size: 0.78rem; color: var(--text-dim); font-style: italic; line-height: 1.45; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.nc-tip::before { content: '💡 '; font-style: normal; }
+.nc-from { font-size: 0.65rem; color: var(--text-dimmer); margin-top: 6px; }
+
+.nb-delete {
+  position: absolute; top: 10px; right: 10px;
+  width: 26px; height: 26px; border-radius: 6px;
+  background: none; border: none; color: var(--text-dimmer);
+  font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
+/* quiz in notebook */
+.nb-quiz-btn {
+  position: fixed; bottom: calc(var(--safe-bottom) + 12px); left: 14px; right: 14px;
+  padding: 13px; border-radius: 12px; border: none;
+  background: var(--accent); color: #000;
+  font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  display: none;
+}
+
+/* ── QUIZ MODAL ── */
+#quizModal {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,0.95);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+}
+#quizModal.open { opacity: 1; pointer-events: all; }
+
+.qm-card {
+  width: 100%; max-width: 380px;
+  background: var(--surface);
+  border-radius: 20px; padding: 24px;
+  border: 1px solid var(--border);
+  animation: popIn 0.3s ease both;
+}
+.qm-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.qm-label { font-size: 0.68rem; letter-spacing: 2px; color: var(--text-dimmer); font-weight: 700; text-transform: uppercase; }
+.qm-close { width: 28px; height: 28px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+
+.qm-word { font-family: 'Playfair Display', serif; font-size: 2.2rem; text-align: center; color: var(--accent); margin: 16px 0 24px; }
+.qm-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qm-opt { padding: 11px 8px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface2); color: var(--text); font-size: 0.85rem; font-weight: 600; cursor: pointer; text-align: center; line-height: 1.3; transition: all 0.15s; }
+.qm-opt:active { transform: scale(0.97); }
+.qm-opt.correct { background: rgba(134,239,172,0.2); border-color: var(--adj); color: var(--adj); }
+.qm-opt.wrong { background: rgba(255,107,107,0.15); border-color: var(--accent3); color: var(--accent3); }
+.qm-result { text-align: center; margin-top: 14px; font-weight: 700; color: var(--text); min-height: 20px; font-size: 0.9rem; }
+.qm-score { text-align: center; margin-top: 10px; font-size: 0.75rem; color: var(--text-dimmer); }
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="splash-logo">Reader at Work</div>
+  <div class="splash-sub">Kelime Okuyucu</div>
+  <div class="splash-bar"><div class="splash-fill"></div></div>
+</div>
+
+<div id="app">
+  <div class="top-bar">
+    <div class="menu-btn" onclick="openDrawer()" role="button">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="top-title">
+      <div class="unit-num" id="topUnitNum">ÜNİTE 1</div>
+      <div class="unit-name" id="topUnitName">Loading...</div>
+    </div>
+    <div class="notebook-btn" onclick="openNotebook()">
+      📓<div class="nb-count" id="nbCount">0</div>
+    </div>
+  </div>
+
+  <div id="readingArea">
+    <div class="unit-header">
+      <h2 id="unitTitle"></h2>
+      <div class="meta" id="unitMeta"></div>
+    </div>
+    <div class="reading-text" id="textBody"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn" onclick="prevUnit()" id="prevBtn">
+      <span class="ni">←</span>
+      <span>Önceki</span>
+    </button>
+    <button class="nav-btn active" onclick="openNotebook()">
+      <span class="ni">📓</span>
+      <span>Defterim</span>
+    </button>
+    <button class="nav-btn" onclick="nextUnit()" id="nextBtn">
+      <span class="ni">→</span>
+      <span>Sonraki</span>
+    </button>
+  </div>
+</div>
+
+<!-- Word Popup -->
+<div id="popup">
+  <div class="popup-backdrop" onclick="closePopup()"></div>
+  <div class="popup-card">
+    <div class="popup-drag"></div>
+    <div class="popup-word" id="popWord"></div>
+    <div class="popup-type" id="popType"></div>
+    <div id="popBody"></div>
+    <div class="popup-actions">
+      <button class="save-btn" id="saveBtn" onclick="saveWord()">＋ Deftere Ekle</button>
+      <button class="close-btn" onclick="closePopup()">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- Unit Drawer -->
+<div id="drawer">
+  <div class="drawer-backdrop" onclick="closeDrawer()"></div>
+  <div class="drawer-panel">
+    <div class="drawer-header">
+      <h3>Reader at Work</h3>
+      <p>Bir metin seç</p>
+    </div>
+    <div class="drawer-list" id="drawerList"></div>
+  </div>
+</div>
+
+<!-- Notebook -->
+<div id="notebook">
+  <div class="nb-header">
+    <div class="nb-back" onclick="closeNotebook()">←</div>
+    <h2>Kelime Defterim</h2>
+    <div class="nb-clear" onclick="clearNotebook()">Temizle</div>
+  </div>
+  <div class="nb-tabs">
+    <button class="nb-tab" onclick="switchNbTab('verb')" id="nbt-verb">🔵 FİİL</button>
+    <button class="nb-tab" onclick="switchNbTab('adj')" id="nbt-adj">🟢 SIFAT</button>
+    <button class="nb-tab" onclick="switchNbTab('adv')" id="nbt-adv">🩷 ZARF</button>
+    <button class="nb-tab" onclick="switchNbTab('conj')" id="nbt-conj">🟣 BAĞLAÇ</button>
+    <button class="nb-tab" onclick="switchNbTab('other')" id="nbt-other">🟠 DİĞER</button>
+  </div>
+  <div class="nb-scroll" id="nbScroll"></div>
+  <button class="nb-quiz-btn" id="nbQuizBtn" onclick="startQuiz()">🎯 Bu Kategoriden Quiz</button>
+</div>
+
+<!-- Quiz Modal -->
+<div id="quizModal">
+  <div class="qm-card">
+    <div class="qm-top">
+      <div class="qm-label" id="qmLabel">QUIZ</div>
+      <div class="qm-close" onclick="closeQuiz()">✕</div>
+    </div>
+    <div class="qm-word" id="qmWord"></div>
+    <div class="qm-opts" id="qmOpts"></div>
+    <div class="qm-result" id="qmResult"></div>
+    <div class="qm-score" id="qmScore"></div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ─────────────────────────────────────────────────────
+const PASSAGES = [{"title":"POLYMER BATTERIES","text":"POLYMER BATTERIES FOR ELECTRIC VEHICLES There is an interest in developing electric cars for two reasons. One reason is that there is only a certain amount of fuel in the world and ij will eventually finish. Another is that electric cars will not cause air pollution; i.e. the air will be clean. Why aren't there electric cars on the roads then? Although there are trucks, vans and other vehicles which run on electricity, the auto industry cannot yet produce electric passenger cars in order to sell on the market. This is because of the batteries in the cars today. These are lead-acid batteries and they do not provide the necessary power for an electric car. In other words, the car cannot go a long distance with such a battery. Besides, you must replace it in time. Most engineers believe that the lead-acid battery is too heavy and too expensive. Therefore, scientists have developed another type of battery. This development may now be the first important step in the mass production of electric automobiles. The new type is a conductive polymer battery. It is made of a material which is similar to plastic. However, it has a metallic appearance and the ability to conduct electricity. This new plastic battery is three times stronger than the ordinary car battery and weighs less than 5 kilograms. In addition, car builders can form it into any shape. This means you can place the battery anywhere in the car; for example, under the roof, behind the door panels or even under the seat. Besides its capacity to take various shapes, it is also cheap because of the polymers used. Several types of conductive polymer batteries are ready to be tested. One disadvantage is that the polymer battery can be toxic - it can even kill people; therefore, it must be insulated well. Many researchers agree that it is important to solve the energy problem; so the conductive polymer battery may be an important first step in electric vehicle development. They believe that such vehicles will replace the ones which we use today."},{"title":"LEARNING ABOUT MARS","text":"LEARNING ABOUT MARS (by Dr. Ken Grady, 1980) People have always been quite excited about details on Mars because Earth and Mars have many characteristics in common. Just like Earth, Mars turns around itself. It takes Mars twenty-four hours, thirty-seven minutes and twenty-seven seconds to complete one turn, so the day on Mars is a bit longer than ours. Besides, both planets have similar seasons. Because of these similarities, astronomers were quite sure that there was life on Mars. In 1877, with the help of improved telescopes, astronomers saw two tiny objects around Mars. Even serious astronomers said these two very small objects were spacecraft. In fact, they were two moons in orbit around Mars. In the same year, Schiaparelli, a well-known astronomer of the time, drew a map of Mars. Although this was not the first map of Mars, it created a lot of interest among astronomers. The map showed lakes, seas and forests. It also showed narrow lines. Schiaparelli called these lines canali in Italian. The correct English word for canali is channels, but it came into English as canals (which means man-made waterways). Because of this mistake people thought that there were living things on Mars and they built these canals to carry water from one place to another. In 1965 the spacecraft Mariner 4 flew past Mars. It did not land on Mars, but it sent Earth twenty-two photographs. They gave a good idea of the surface of Mars - a place full of craters and high areas of volcanic rock. Then in 1971, Mariner 9 discovered four volcanoes on Mars. They were much larger than the volcanoes here. The largest one, Olympus Mons, was 25 kilometres high and 500 kilometres from side to side. In 1976, two spacecraft, Viking 1 and Viking 2, landed on the surface of Mars. Radio signals from Earth controlled the two spacecraft. Viking 1 and Viking 2 could feel and control their environment. They could also do self-repair. That is, when there was a problem with a part of the spacecraft, they could repair the damage themselves. ; Wng 1 left Cape Canaveral, Florida, for Mars on August 20, \"j. > / 5. It travelled around the sun and it took eleven months to complete its trip of almost 1,000 million kilometres. It was very difficult for Viking 1 to find a safe landing place because of the strong winds and the rough rocky surface of Mars. Finally on July 20, 1976, it landed safely on Mars. And Viking 2 landed on Mars on September 3, 1976."},{"title":"PIRATES","text":"PIRATES Pirates were people who attacked and robbed ships on all oceans of the world. They were sea robbers or bandits and have been called by many other names such as: buccaneers, corsairs, filibusters, freebooters, landrones, picaroons, and rovers. Pirates existed for about 200 years, from the 16th to the 18th century. They used to attack and capture ships for the valuable cargo, leave their ships to break into homes in coastal towns, carry away valuables, take people to their ships by using force, and organize powerful groups to get large amounts of ransom, which was paid to free a captured person . Probably most people have romantic ideas about pirates. The movies and some famous books such as Treasure Island by Robert Louis Stevenson and Captain Blood by Rafael Sabatini have helped to create a romantic picture of pirates. The pirate in films and books is a cavalier, a good-looking gentleman, with a beard or moustache, gold earrings and a large hat or turban. He usually has a sword or a sharp dagger in his belt and a pistol or gun in his hand. In reality, pirates were not romantic at all. Often they were desperate, violent and dangerous, people who drank a lot and dressed very badly in rags and wasted food and money. They were people who did not like the situation of their home society and, therefore, rebelled and fought against the government. The police looked for them everywhere because they were outlaws, i.e., people who committed crimes and hid from the authorities. Most pirates did not live long. A kind of democracy often existed among pirate groups. They elected, or chose their own captains and prepared rules and regulations to use when they were doing business. During the 1600's and 1700's there was a lot of piracy along the American coasts and in the West Indies. The great treasure ships of Spain which carried gold and silver from Spanish colonies to Europe were frequently attacked and the valuables were stolen by pirates. But there were also times when the American government asked for the help of pirates. Many of the American pirates became privateers during the American War for independence. The pirate, Jean Lafitte, for instance, became a privateer and helped American military forces to protect New Orleans in the War of 1812. Among the men, some famous pirate names in history are: Barbarossa, Ali Pichinin, Henry Morgan, Captain Kidd, \"Black Bart\" (Bartholomew Roberts), \"Blackbeard\" OSdward Teach) and among the women: Anne Bonney and Mary Read."},{"title":"LIFE IN SPACE","text":"LIFE IN SPACE Hopes of finding life on other worlds have been raised by Canadian astronomers. Their observations of nearby stars have shown that half of them may have planets. The discovery, announced at a recent meeting of the American Astronomical Society, provides important support for scientists who believe that planetary systems, and life, are common in our galaxy. \"These observations suggest that half our galaxy's 100,000 million stars have planets - and that means we must have a good chance of finding life 'out there',\" said Professor Archibald Roy of Glasgow University. The research, carried out by Dr. Bruce Campbell of the Dominion Astronomical Observatory, Victoria, and Dr. Gordon Walker and Dr. Stephenson Yang of the University of British Columbia, Vancouver, employed a new astronomical measuring technique called high-resolution spectroscopy. In the past, the search for other worlds has been limited by two factors. First, planets are tiny, i.e. very small, objects compared with stars; for instance, the sun, a typical star, is 300,000 times more massive or larger than the earth. Second, planets do not shine but only reflect (give back) light from stars. But Dr. Campbell and his colleagues solved this problem by using high-resolution spectroscopy to measure variations in a star's light. Small differences in a star's light showed that unseen planets pushed and pulled the stars out of their paths, in other words, their ways. The astronomers' results, published in the Science magazine showed that, of 16 nearby stars, two - Epsilon Eridani and Gamma Cephei were definitely being affected by large bodies in orbit round them. Of the rest, five or six also appeared to have unseen companions. The astronomers calculate that these unseen objects must be several hundred times more massive than Earth. However, they are almost certainly planets. \"There are about 100,000 million stars in our galaxy and about one fifth are stable: that is, unchanging and cool like our own sun.\" said Professor Roy. \"Now it seems about half also have planets. That leaves us with 10,000 million stars which might have life on them. It's very encouraging.\" Further evidence should follow, because in a few years two important space projects - the Space Telescope and a European satellite called Hipparchus - will be introduced. Both will increase scientists'"},{"title":"MANCHESTER","text":"MANCHESTER The City of Manchester is situated in the heart of a huge industrial area of Lancashire. For centuries this inland city has been the centre of the cotton trade. Cotton is not grown in Lancashire, of course, but it is made into cloth there, and the finished material is exported all over the world. All around Manchester are many smaller towns where the cotton industry has developed and where soap, chemicals, dyes, rubber goods and paper goods are manufactured. Manchester itself is now famous not only for the production of machinery of all kinds, but as a great trade centre of England, second only to London. It was not always so. Until the building of the Manchester Ship Canal the cotton goods had to be transported to Liverpool, over thirty miles away, and there loaded onto cargo ships which carried them all over the world. Naturally, this increased the cost of the goods and reduced the profits of Manchester's trade. Why is this no longer necessary? Because this famous canal goes all the way from Liverpool to Manchester, a distance of thirty-five miles. It is wide and deep enough to carry large ships easily and safely. It has transformed Manchester from an inland city into one of Britain's greatest ports. Huge docks and warehouses, stores and factories have sprung up along its banks (sides) and, every hour of the day. and night, great ships from all over the world are loading or unloading cargo at the port. The Ship Canal was opened to traffic on January 1st, 1894. It is a very good example of engineering skill and perseverance.* Five railway lines crossed the route chosen for the canal and bridges had to be built for them. Rivers and streams also stood in the way. They could not be allowed to flow into the canal because they would have interfered with the water-level. These were only a few of the problems the engineers had to solve. At last, however, the work was finished. On January 1st, 1894, seventy-one ships sailed for the first time from the mouth of the River Mersey where Liverpool stands, right up to the City of Manchester. On May 21st of the same year Queen Victoria herself sailed up this wonderful waterway to perform the official opening ceremony. 'perseverance: continuing firmly in spite of difficulties"},{"title":"INDUSTRIAL MEDICINE AND SAFETY","text":"INDUSTRIAL MEDICINE AND SAFETY People who work together often get the same diseases (illnesses). For example, lung cancer is common among asbestos workers and miners. Many people who work with X-rays get skin cancer. Most coal miners develop black lung disease after years of work in coal mines. These people probably get these diseases because of their work. In addition, accidents on the job may injure or kill workers. For instance, farm machines sometimes injure farm workers. Construction workers sometimes fall from buildings. These injuries can be fatal. People who work with electricity may get electric shocks. Fires sometimes kill fire fighters. Many large companies employ both industrial doctors and safety engineers to protect workers from accidents and illness on the job. Thev do this in three ways. First, doctors study the workers and their diseases. They know that certain groups of workers often have the same diseases. At the same time, safety engineers study accidents and their causes. Second, doctors and safety engineers work together to change the machines or the job because they want to prevent accidents or illnesses. Third, they educate workers about the dangers of their jobs. They teach the workers about safety on the job. Education is necessary for prevention. There are many causes of accidents and illness at work. Chemicals, noise, and radiation are a few. For example, gases in mines cause accidents and poison miners. Toxic chemicals, such as lead (Pb), mercury (Hg), and silica (SİO2), made people sick in the past, and they make people sick today. In additon, there are new chemicals, and some of them are toxic. Thev harm the skin, the lungs, and other internal organs such as the heart, liver, or kidnev. Industrial noise sometimes causes deafness. Many things in the workplace can cause illness or injury. Industrial physicians and safety engineers often prevent these problems. After they find the causes, they plan and design new machines to prevent accidents in the future. They design different ways to store and transport toxic chemicals. They measure and control gases in the air. They set standards for work in dangerous situations. For example, airport workers must cover their ears near the airplanes outside. Some workers must wear protective clothing, like eye goggles, hard hats,and safety shoes. After careful study, both doctors and safety engineers do many things to decrease the danger of injury and illness on the job. They make the work area a safe place. 129'"},{"title":"OUR FIRST WORDS","text":"OUR FIRST WORDS Is language, like food, a basic human need without which a child can be starved and damaged at a critical period of life? In the thirteenth century, Frederic II made a frightening experiment to find an answer to this question. He was hoping to discover what language a child would speak if he heard no language at all so he. told the mothers in the experiment to keep silent. The results of the experiment show that hearing no language at all can be very harmful for a child. All the babies in the experiment died before the first year. Was the deprivation of language the only reason for their death? Obviously, there was more than language deprivation here. What was missing was good mothering. Without good mothering, in the first year of life especially, the capacity to survive is seriously affected. Today no such extreme language deprivation exists as that in Frederic II's experiment. However, some children are still backward in speaking. Most often the reason for this is that the mother can't understand or doesn't notice the cues and signals of the baby, whose brain is programmed to absorb language rapidly. There are critical times, it seems, when children learn more easily. If the mother can't deal with these important periods properly, the ideal time for learning skills passes and they might never be learned so easily agajn. A bird learns to sing and to fly rapidly at the right time, but the process is slow and hard if the critical stage has passed. Linguists suggest that certain stages in language development are reached in a fixed sequence and at a constant age, but there are children who start speaking late and who, eventually, become very intelligent. At twelve weeks, a baby smiles and produces some sounds; at twelve months, he can speak simple words and understand simple commands; at eighteen months he has a vocabulary of three to fifty words. At three he knows about 1000 words which he can put into sentences, and at four his language differs from that of his parents in style rather than grammar. Recent evidence suggests .that a baby is born with the capacity to speak. What is special about man's brain is the complex system which enables a child to connect the sight and feel of things with their sound pattern. The child's brain is also able to pick out an order in language from the sounds around him, to analyse, to combine and recombine the parts of a language in new ways. However, the child's language development depends on his communication with his mother. The mother should always understand"},{"title":"YOUR DIET","text":"YOUR DIET One of the side-effects of mothers leaving the kitchen in favour of more interesting, sociable and better paid work is, sadly, that their children are not being fed properly (i.e. their diets are not satisfactory). In 1985 a survey was carried out on over four thousand children throughout England and Wales to try and find out how well they were fed. The results were alarming: Satisfactorily Fed Unsatisfactorily Fed J WALES ENGLAND %0 Once, schools tried to make up for these deficiencies by providing free milk and cheap meals. Now the price of meals is increasing continuously. Moreover, free milk is no longer provided since the government believes that the nation's children are properly fed, and that children's dietary standards are not the business of the government anyway. According to the results of the survey, however, it has become obvious that school plays a very important part in a child's diet. Before the Second World War, the mother supplied the family's nourishment (i.e. the food that is needed to grow and remain healthy). Now the responsibility is divided between home and school. A third of the working force in England are women, two-thirds of them married, half with school-age children. Many have long distances to travel to work and are not prepared to spend hours working in their home in the evening or at the weekend. These facts mean that the approach to food and its preparation has changed a lot since the war. During the war many women were required to work in industry and weren't able to spend much time cooking for their children. Children's diets were therefore supplemented outside the home by various welfare agencies, including the schools. In other words, additional food was provided to improve children's diets. The situation really has not changed very much. More and more women are going out to work, and are either just not at home when their children need to be fed, or are short of time to prepare proper"},{"title":"LOSING FERTILE LAND","text":"1 LOSING FERTILE LAND Every year in many developing countries large areas of land that once produced food become completely unproductive, causing the residents of these areas to suffer. They have to move to other places or die of starvation. The problem is not caused by pollution; it is not the result of poisonous chemicals which contaminate the land. Pollution is not the only way to destroy the environment. U can also be destroyed by humans who disturb the ecological balance of an area in other ways. In any area there is a balance in nature. Each part of the natural system depends on other parts. If one part is disturbed, then the balance of the system is disturbed and other parts begin to suffer. Today, many people all over the world are threatened with this problem. The lives of these people, as well as the lives of their children and grandchildren, are put in danger because of environmental destruction. Let us look at the example in Nepal. A number of years ago, the population of Nepal began to increase, especially among the people who live in the small farms in the mountains. More food and fuel were necessary for the larger number of people, so the farmers in the mountains bought more animals. For fuel and animal food, they cut down more and more of the trees and plants which grew on the sides of the mountains. These plants and trees served a very important purpose. They protected the hills from the weather. They held the top soil in place and prevented it from being pushed down the mountain sides by wind and rain. Now without the protection of the trees and plants, the top.soil is being washed away by heavy rain. The farmers are losing their land. More and more have to move to the lower areas of Nepal, which are already overpopulated and cannot support a large increase in population. To solve problems like this one, it is important that people understand the consequences of their actions. It was not clear to the hill farmers of Nepal that they were responsible for the destruction of their own land. Today environmental scientists are teaching the farmers about ecology: They are also showing them ways to protect their land with new trees and plants. Problems which are similar to the problem in Nepal exist in many countries around the world, but they can be solved. Ecologists are proving to us that actions which supply short-term solutions to problems can have disastrous long-term consequences. By paying more attention to these scientists, governments can avoid making the same type of mistakes that were made in Nepal and in many other countries. 2"},{"title":"SOLAR ENERGY","text":"SOLAR ENERGY Most of the energy we consume comes directly or indirectly from the sun. In 1972, man consumed 90 trillion horsepower hours of energy. During the same year, the sun emitted 1.5 million trillion horsepower hours of sunlight on the planet. Only a small fraction of this natural force (40 billion kilowatts) is converted by green plants into all the food and wood that grows on the earth. Over hundreds of thousands of years this vegetation is eventually converted into fossil fuels like coal and oil. Because of the length of time which is required to produce fossil fuels, it would be more feasible to employ solar radiations directly to help meet our energy needs. Presently solar energy can be used to stretch our limited supplies of fossil fuels. Experiments have already shown that we can heat a house, heat water, air condition buildings, cook food, and produce electricity with solar energy. Scientists have even converted an automobile to run on batteries which are charged by solar cells. In the future, solar energy may be one of our main sources of energy. 1. Line 1, to 'consume' has several dictionary meanings. Which is the meaning in this passage? a) To do away with completely, to destroy. b) To eat or drink, especially in great quantity. c) To use up. 2. Line 3, 'During the same year' refers to ; . 3. Line 3, 'emitted' means . 4. Which of the following does 'this natural force' (lines 4-5) refer to? a) The 90 trillion horsepower hours of energy consumed by man. b) The 1.5 million trillion horsepower hours of sunlight. c) The natural force of green plants. d) None of the above is correct. 5. Which statement is true? a) It would be most practical if we could get some solar energy directly to meet our energy needs because we require too mu n time to produce fossil fuels. b) It would be most practical if we could get some solar energy directly to meet our energy needs; therefore, we require so much time to produce fossil fuels. c) We require a lot of time to produce fossi! fueis; therefore, it would be most practical if we could get some solar energy directly to help meet our energy needs. d) Both (a) and (c) are correct."},{"title":"RENEWABLE AND","text":"RENEWABLE AND NON-RENEWABLE RESOURCES Ecology is the study of man and his environment. The natural environment contains all natural resources that are necessary for life: the air, the oceans, the sun and the land. Because these resources are vital for life, ecologists study their importance and how to use them carefully. Ecologists often divide resources into two groups: renewable and non-renewable. When we use a resource, it takes some time to replace it. If we can replace the resource quickly, it is called renewable. It is non-renewable if we cannot replace it quickly and easily. For example, grass for animals is a renewable resource. When animals eat the grass, usually more grass will grow. Coal, however, is non-renewable because it takes millions of years to make coal. All fossil fuels are non-renewable resources. The decomposition, or decay, of organic materials forms fossil fuels and they include coal, oil and gas. We started using these fossil fuels in large quantities less than 200 years ago and we haven't stopped since. Some scientists now predict that we will exhaust our supplies of fossil fuels in 50 years. In other words, in 50 years there won't be any fossil fuels left. Many resources are non-renewable. As a result, we must conserve them. That is, we must use them carefully. There are several ways to do this. First, we must find and use new resources. Second, we should find new uses for old resources. Third, we shouldn't waste any resources. Last, we must try to recycle the already available resources. In this way, we can use the same material over and over again. 1. Which resources are 'natural resources'? 2. When did we start using great amounts of fossil fuels? 3. How many ways of using resources carefully are mentioned in the text?"},{"title":"WORK AT HOME","text":"WORK AT HOME Work at Home - And we're not talking about housework! The electronic cottage. Does it sound strange? Not to futurists. They say that in the future people will Avork at home, connected to their office by inexpensive computers. In fact, some experts say that, by the year 2000, as many as 10 million \\Americans will be working from the home. No more rush-hour traffic problems. No more expensive office buildings. Office workers could work more productively and effectively in their homes, where they wouldn't be constantly interrupted by the phone and other colleagues. But is the home really the ideal place to work? In experimental projects across the US, several hundred secretaries and professional workers have agreed to try working at home on computers that are connected to their firm's office computers. This kind of work is called 'telecommuting', and employees work at 'flexiplaces' instead of in office buildings. Although the advantages of computer work at home have always been obvious, the disadvantages haven't been discussed too much. Employers are afraid of losing control over their employees. They don't trust the workers at home and think that if no one is watching the employee, he or she won't work as hard. On the other hand, employees feel out of touch with the office and fear they might be forgotten when it comes to pay raises and promotions (i.e., getting a better job with the same company). Companies are also discovering that working at home is expensive for them because of the high cost of computers. Unions are against computer work at home. They fear that the home computer workshop will bring back the poor working conditions of the late 19th century. They say it will be easier for employers to pay workers less and not give any health insurance or pension schemes. They are afraid that children will be working at an earlier age and they say employees may even be forced to buy office equipment usually paid for by the firm. At the moment the unions are against all home computer work except for the handicapped, who cannot live a normal life due to their physical or mental disability. Companies who have experimented with work at home have had some successes but also some failures. Fun Toy Co. says that the workers at home worked 48% more effectively than the workers in the office. But not all the home workers liked it. Three out of eight managers in the programme dropped out. One manager, Sally Evans,"},{"title":"AROUND THE WORLD","text":"AROUND THE WORLD IN A PAPER PLANE! Deep in the Mojave Desert, Jeana Yeager, a schoolteacher's daughter from Texas, is ready to make her dream come true - to fly around the world in a paper plane without stopping. It has taken £4 million and five years of effort to realise this dream, and some time in the next nine months she and co-pilot Richard Rutan will climb aboard a paper plane called The Voyager and in 13 days and nights they will go around the world without touching Earth. Can it really be done? \"We believe so. All the results from the test flights indicate it is possible,\" said 33-year-old Jeana, who holds four world flying records and is a skilled engineer. The Voyager will follow the most suitable winds of the upper atmosphere and the flight will be mostly over water. If anything goes wrong, they will be able to make an emergency landing on the sea. Jeana and Rutan hope to do 25,000 miles in the remarkable Voyager so they used a kind of paper much stronger than ordinary paper in the construction of their plane. It is made with reinforced paper. The Voyager is quite big - its wings are longer than a Boeing 727's. Although it weighs less than the average car, it can carry a large amount of fuel (approximately 1489 gallons). In a test run, or test flight, over the Rocky Mountains, Jeana was air sick for the first time in her life. \"The Voyager is very light - it easily moves with the wind. It was like being on board a small yacht in a rough sea. We seemed to be going up and down like in waves,\" she said. During the flight the turbulence, i.e. strong wild movement of air, forced them to fly very high - almost on the edge of the atmosphere. Flying that high was not included in their flight plan and Jeana and Richard had some difficult moments until they managed to get out of the turbulence. Jeana and Richard are very excited about their project. It was nearly a quarter of a century ago that a B-52H jet bomber flew from Japan to Spain, a distance of 12,532 miles, without stopping. That was the world record for an unrefuelled flight. The project was born as a result of a conversation between Richard and his aircraft designer brother Burt. Richard asked him if it was possible to fly round the world without refuelling. After some careful thinking, Burt said \"I think so\". But Jeana and Richard are the ones who will find out."},{"title":"RURAL MIGRATION","text":"RURAL MIGRATION For most of its history, the United States has measured its progress according to the growth of its cities. In the last 200 years, cities have expanded very fast and many have become centres of commercial and industrial activity, and of political, artistic and social life. There has also been an increasing number of foreign immigrants, people from different countries, moving to America to settle down and internal migrants, people within the country, moving from farms and rural areas to cities. In recent years, however, something unexpected has happened and this pattern has changed. 10 For the first time in two centuries, the countryside is growing faster than the cities. The change from a pattern of migration into the urban areas to one of migration to rural areas happened quite suddenly. For example, from March 1970 to March 1974, almost six million people moved 15 out of the cities, while only a bit more than four million moved in. The changing migration pattern can best be seen in the largest cities of America. Five of the eight largest cities - New York, Chicago, Los Angeles, Philadelphia and Detroit - have actually lost population since 1970. The change seems to show that Americans 20 do not enjoy living in urban areas anymore. Small rural towns have suddenly become more attractive. Many reasons are offered in explanation of the decrease in movement to the cities. Some of the most recent explanations are those that mention the disadvantages of living in the cities because of food, energy and job shortages. Other urban problems often mentioned are crime, drugs, pollution and transportation. Another reason why people choose to live in rural areas is probably the growth of colleges and universities in areas outside the cities. Other reasons are the environmental movement, which has 30 been started by people who are in search of cleaner air and water, and the improvement in the living standards of rural communities. Many people today have bought farmland which belonged to people who migrated to the city, and most have started to provide the major part of their needs by growing crops and raising farm animals. The setting up of small and medium-sized manufacturing plants (factories) in rural areas has also attracted people from cities. Although such factories pay lower wages than those in large cities, they provide employment for both men and women and help to increase rural income. With the increasing possibility of finding"},{"title":"OUTWARD BOUND","text":"OUTWARD BOUND 'Outward Bound' is an educational concept, i.e. idea, that has developed over the last 35 years. Thousands of people in many countries around the world know about it. Outward Bound consists of many educational organisations in different parts of the world. These 5 organisations use nature as classrooms. Outward Bound courses consist of a series of carefully planned but difficult physical activities. The purpose of the activities is to create confident students who are prepared to deal with danger, uncomfortable situations, stress, frustration, and challenge. Increasing a student's 10 confidence helps him to obtain the feeling of independence and gain the ability to deal with complex everyday life situations more easily. The standard Outward Bound course lasts three to four weeks. During that time, the students live in the wilderness— an area of wild, rough land where no people live - and perform physical activities whose 15 difficulty increases every day. The first few days are spent on physical exercises. In addition, the students are taught basic skills such as first aid (how to help people when an accident occurs), map reading (how to find the right way), compass reading (how to find the correct direction) and other similar activities. During the second part of the course, 20 students learn how to climb rocks and mountains, how to use boats and canoes in rough rivers, and in some schools how to sail, ski and hike long-distances. The first two parts of the course are done in groups. Members work together and help each other. In the third part of the course, students are sent out alone for three days to test their ability to 25 live in the wilderness with only a few necessities like a box of matches, some pots and pans, a knife, a sleeping bag, a little water and very little to eat. Who are the students of Outward Bound? They are both young people and adults, both men and women. The minimum age is 16 30 years. There is no maximum age. About 2000 of the 6000 people who complete the course each year are women. Housewives, university students, professors, doctors, and lawyers are also among those who have taken part in the course. In recent years, special courses for the busy businessmen have 35 become increasingly popular. These courses last from five to ten days rather than the usual three to four weeks of the normal course. Not all students complete the Outward Bound course. Sometimes the physical challenges cause a lot of stress. Organisers of an Outward Bound course tell their students before they start that they shouldn't 1 2 3 4 6"},{"title":"A PLAIN MAN'S GUIDE TO INVESTMENT","text":"WHERE TO INVEST YOUR MONEY: A PLAIN MAN'S GUIDE TO INVESTMENT A financial expert helps people with their investments. I am often asked for advice on investments. People want their money to make a profit and to increase in amount. The average investor wants to make a quick profit in a short time. However, it's a fact that he cannot expect a maximum profit with a minimum risk. He doesn't want to lose his money when he is investing it, as most of the investors also want to save money for their retirement. Below are some guidelines on how they can invest their money. An investor may put his money in a bank. He can open two kinds of accounts. If he puts the money in a deposit account, he is paid interest. However, his money will remain there for a period of time and he will not be free to draw it out at any moment. If he does, the bank will not pay him any interest on his money. If he opens a current account, on the other hand, the customer can obtain his money whenever he likes, but will not be paid any interest and therefore, will not pay any taxes. So it is advisable to have enough money in a current account to spend on immediate expenses and to take advantage of the interest rates by keeping the rest in a deposit account. If you can put aside - save - money regularly, try this. Deposit accounts are taxed, however, and they are not very good investment if the cost of living rises fast; that is, if the inflation rate is high. An investor could join the government's 'Save As You Earn' scheme, which is the safest method of investment. If he saves money regularly and he doesn't want his savings to lose value as the cost of living rises, he should join this scheme. This offers him a tax-free interest. However, he must promise to save a certain amount every month for at least five years. He could invest in the stock market. The stock market offers investors the opportunity of making quite good profits within a short time. But that kind of investment is very risky as there can also be heavy losses in a very short time. Since the 1960's, profits made in the stock market have been taxed, too. Unit trusts are a way of reducing the risk of losing one's money. The investor entrusts - gives - his money to experts and they invest it for him in a number of different ways by buying shares. If the experts choose carefully and wisely, unit trusts are more likely to guarantee him a profit.' He could buy property as it usually increases in value more quickly than the cost of living. But if you still have to sell your house, remember that you will have to pay taxes for the money you receive for it. If you sell someone a house, you can only escape taxation if you are living in it at the time you are selling it."},{"title":"A NATION OF PET-LOVERS","text":"A NATION OF PET-LOVERS Julia Elliot discusses the English love of pets. A recent survey in the United States showed that the average family there spent more money on its pets than on its children. This y is a rather shocking statistic. It is possible that Americans are unique in caring for their pets, but the information we have would suggest 5 that the English too do their best to take good care of their pets. This can clearly be seen when we look at pet foods, which often contain more vitamins than human food. They certainly cost as much. Last year the British public spent two hundred million pounds 2 on pet food alone. It is difficult not to feel sad about this when one 10 thinks what the same amount of money could do for poor or old people, especially when I read about another old person who has left all his/her money to a dog or cat home. There are a variety of reasons why I, personally, find the popularity of British pets alarming. First of all, they cause physical 15 problems. An example of this is London, where there is great 3 difficulty in getting rid of the mess that dogs leave on the streets. Many people find this funny, but in a number of large cities it is a major problem. Animals can cause disease, too. It is the threat of rabies - a 20 disease with no known cure - that has made the English government 4 take some measures by restricting animals coming into the United Kingdom. Another problem is the carelessness of some pet owners. Most little children want a dog or cat. It is only when the 'sweet little 25 thing' has been brought home that parents realize how much time 5 and money must be spent on 'Bonzo' or 'Bulky'. Therefore, many of these owners abandon their pets. Pets which are allowed to run free are not sweet at all. English farmers lose hundreds of sheep a year, killed by someone's pet. You may think that I dislike all pets, but this is not true at all. We 6 are a nation of pet-lovers. Wouldn't it be betiü to be lovers of human beings?"},{"title":"FLYING GRANDMOTHER","text":"FLYING GRANDMOTHER An Interview with Theda Beningfield In Raytown, Missouri, there lives a woman named Theda Beningfield. She has a husband, two children, seven grandchildren and a busy life. What makes this grandmother so unusual? When I first started flying, many members of the family thought I had completely lost my mind. I didn't start to fly until I was 48 years old. In the ten years I have been flying, I got a private licence, a commercial licence and an instructor's classification. After that first 30-minute lesson, I didn't know whether I would ever get a licence, but still I wondered whether I could solo that airplane; whether I would really have enough courage, enough knowledge and ability. When the big day came and the instructor said, \"All right, you can solo,\" would I really be able to go off myself or would I just grab him around the neck and say, \"Don't leave me!\" ? Mrs. Beningfield has part-time employment in a doctor's office. Her job gives her the opportunity to work with people. She also likes to keep busy by doing work for charity organisations. Well, yes, I am the president of the Union City Mission Auxiliary. The Union City Mission has been gathering clothes and food for needy people in the Kansas City area for 50 years. Well, back to flying.... I feel that aviation is a real challenging thing; il is a real fun thing. I tell people that if they want to learn to fly they can learn to fly, if they really want to doit. The goal that we all have as flight instructors, of course, is making a flight safe. And the thing that will be uppermost will be the decisions that the trainees will have to make: decisions about weather, distances, deciding that they are familiar with their aircraft. Every time I go into the air, there is something that I learn, and I do not believe that when you are flying, you can sit back and let some of these things pass by. You just have to keep learning. And then I just think, well, how wonderful it is that someone came up with this airplane that would put me up here in the air, because it is a beautiful thing to fly, really."},{"title":"VEGETARIANISM","text":"VEGETARIANISM Good food is a celebration of life, but it seems strange to me that in order to live we have to kill. That is why I do not eat meat. I see no need for killing. There are increasing numbers of people who, like myself, no longer want to eat meat, fish and poultry and are turning to a vegetarian diet. Certainly we do not have to kill to feed ourselves. All the proteins, vitamins and minerals that we need in order to live and to be healthy are easily available in the endless variety of plant life, and in those gifts animals give us painlessly, such as milk and eggs. Many of us are turning to vegetarianism in our own interests, which are the interests of all human beings, because millions of people on this planet are dying of hunger, but food which could keep them alive is used for animals which grow fat only to be killed and eaten by the richer nations of the world. In recent years, dramatic new reasons have made people think again about what they eat. More and more foods have now become the products of factories rather than farms. Chemicals \"improve\" the appearance of foods and make them keep longer. Animals and poultry are treated with sex hormones to make them grow faster - and, of course, to increase profits. The results are unknown dangers to human consumers, including the possibility of various types of cancer. Industrial societies have pumped poisonous chemicals into rivers and seas. Eat fish and you eat these poisons, too... But this is a book about pleasure, not pollution. I hope that even if you are still in the habit of eating meat and fish, you will try some of the different ways and means of cooking here. You might even find yourself happily becoming a vegetarian, too. People often ask me, puzzled, how vegetarians eat. Their puzzlement is real. They think of their own meals without the meat and think \"how awful\". But in fact their meals are pretty awful anyway: dull, unimaginative, boring. Even in 'good' cooking, variety is usually found only in the main course, usually meat or fish. Things like salads, vegetables and bread are of little importance and are the same every time. This standard meal is served with little change from day to day and week to week. Soup, 'main course', salad, dessert: this is the unchanging order of the standard meal. The first thing to do when thinking of vegetarian cooking is to forget these stereotyped ideas. Vegetarian cookery is rich and varied, full of many marvellous dishes with a character all their"},{"title":"A HOLIDAY BROCHURE","text":"A HOLIDAY BROCHURE This is an extract from the holiday brochure of a travel agency organising tours from Great Britain to Russia. HOW TO BOOK Our staff at the Intourist Moscow Ltd. will be pleased to help you choose your holiday, make your reservation and give you any general advice you may need. It is advisable to telephone our Reservations Dept. 01-580 1221 to be sure that the holiday is not fully reserved. Bookings should be accompanied by a deposit of £35 per person, plus £11 (but £ 20 for cross-country skiing) for insurance. When we receive your booking form and deposit, a confirmation will be sent to you. You will get this letter, which will finalize all the arrangements, within 7 days. TRAVEL DOCUMENTS As soon as your account is fully paid, your air tickets, travel documents, tourist visa, customs declaration form and luggage labels will be sent to you by first class post approximately 7-10 days before departure. REDUCTIONS FOR CHILDREN For children accommodated in their parents' room, the following reductions apply: Aged 2-11 years included (at time of travel) - 25 % Children under 2 years of age - 50 % (transportation cost only, food costs to be paid direct to restaurant) The extra accommodation consists of a folding bed in the parents' room. We regret that it is not possible to provide cots for very young children. SINGLE ROOMS A supplementary charge should be paid for single room accommodation. This extra payment is £9.50 per person per night. Passengers travelling alone who request shared accommodation in a twin-bedded room should indicate this request on the booking form. If no one is available for shared accommodation until the date of travel the extra payment will be £4.75 per night only and we will allocate single accommodation."},{"title":"THE ELIZABETHAN GRAMMAR SCHOOL","text":"THE ELIZABETHAN GRAMMAR SCHOOL Schoolchildren have always Timetable grumbled about having to go to school, 6.00 - 9.00 Lessons but they have an easy life today 9.00-9.15 Break compared to their ancestors in 9.15- 11.15 Lessons Shakespeare's time. In those days, as 11.15- 1.00 Lunch Break the timetable for a typical Elizabethan 1.00-3.00 Lessons grammar school indicates, children used to get up very early to be in their 3.00-3.15 Break places in class in time for the first 3.15-5.30 Lessons lesson at six o'clock. During the day 5.30 Prayers they had three breaks, but altogether they spent over nine hours a day at their lessons, six days a week, including Saturdays, and had only one afternoon off for games. To us, it seems incredible that teachers found it necessary to justify the rest periods to parents, who often thought they were a waste of time! When they first went to school, children were taught to read, write and count. But in later years teachers used to devote almost all the time to two subjects, Latin and rhetoric, the art of self-expression in one's own language. Modern educationalists and today's children would have been horrified by not only the monotony of the teaching method but also the competitive nature of the school and its discipline. Teachers encouraged children to arrive on time in the morning. When they arrived, the teacher would place the first students who came to class at the front seats and the last who came had to sit at the back of the class. But the children used to change places in the course of each day, because those who failed to answer a question were sent to the back. Discipline was a controversial subject among teachers, but the argument was not about whether children should be physically punished, as it has been in recent years, but about how often they should be beaten and for what reasons. We do not know for certain what Shakespeare, the most remarkable pupil of one of these schools, thought about the subject. In one of his plays, however, he has a Latin lesson, where the pupil, a small boy called William, shows more common-sense and imagination than the teacher. According to his friend, Ben Jonson, Shakespeare was not very good at Latin or Greek. Jonson does not say anything about Shakespeare's performance in rhetoric classes, but he must have been exceptional at rhetoric. Nevertheless, he would surely have been happier in a modern school, where children are encouraged to develop"},{"title":"THE DIRTY OLD MAN OF EUROPE","text":"THE DIRTY OLD MAN OF EUROPE Acid rain is one of the most serious problems for the environment. It is caused mainly by power plants that bum coal to produce electricity. The smoke from these power stations contain high levels of sulphur dioxide and nitrogen oxide, which mix with the moisture in the air and 5 fall to the soil in the form of rain or snow. Acid rain causes damage to buildings, farms and fisheries, forests and lakes and to human health. The British government has done little to reduce the damage caused by acid rain in the last few years. This damage costs the European Community more than $12 billion every 10 year. Environmentalists have discovered that Britain is responsible for the greatest amount of European air pollution, but the government has only recently decided to take any action. When acid rain falls onto soil, it absorbs the aluminium from the soil and carries il into rivers and lakes. In June 1988, a report in The 15 Observer suggested a connection between senile dementia, weakness of mind, and aluminium in drinking water in many parts of England and Wales. When it falls onto plants (including trees), acid rain causes chemical imbalances, resulting in death. In 1985, a survey by the Friends of the 20 Earth discovered that more than two thirds of the trees examined had suffered from the effects of acid rain. Britain, and especially the Central Electricity Generating Board (CEGB), is the largest single polluter of European air. The power stations around Selby give off more sulphur than Portugal, Norway, 25 Ireland and Switzerland together. According to the Friends of the Earth, more than 70 percent of British sulphur emissions fall outside Britain because of the air movements from the British Isles to continental Europe. This is one of the reasons for the acid rain in Europe. Other European nations have seen the damage and have started to 30 act. They have formed a club which is trying to reduce the sulphur emissions by 30 per cent by the year 1997. Britain, however, has constantly refused to join this club although the ost of the reduction would only be about £2 billion over ten years. If ne government does not take action very soon, there will be a crisis in the European ecology 35 in the near future."},{"title":"FOOD ADDITIVES","text":"FOOD ADDITIVES Our bodies depend on the food we eat to function normally. But how many of us know what we are eating? We might think, for example, that a packet of vegetable soup only contains dried vegetables. However, this is not the case. It also contains additives. These are put into food for a number of reasons, and are grouped according to what they do. There are four main groups: preservatives, which prevent the growth of micro-organisms which would spoil the taste or make the food dangerous to eat; anti-oxidants, which stop the food from becoming spoiled as a result of contact with air; stabilisers and emulsifiers, both of which make sure that the ingredients mix and do not separate out again; and colouring agents which colour the food in order to make it look more attractive. A typical packet or tin of vegetable soup will contain additives from all these groups. And it's not just packaged convenience foods that contain additives. Cheese, carbonated or fizzy drinks, margarine, biscuits, jam, tinned fish also contain them. In fact, any factory-made food does so. In several countries, the use of food additives is controlled by government regulations. The UK list of permitted additives is based on a list produced by the European Community (EC). Additives on the EC list are generally assumed to be safe to use. However, some people have expressed doubts about the safety of some of them, and some are not allowed in the United States. This is sufficient cause for concern, particularly when we consider that small amounts of additives soon add up. (It is estimated that each member of the British population eats between three and seven kilograms of additives per year.) Is it right that potentially harmful substances are put into our food without our knowledge? From the point of view of the health of the consumer, the answer appears obvious, but ending the use of additives would have far-reaching effects. It would mean only eating fresh, locally produced food. People would have to spend much more *ime in the kitchen as there would no longer be such a thing as supermarket convenience food. This would not be acceptable to many consumers iuid certainly not to the convenience food manufacturers. So it seems that additives are here to stay."},{"title":"THE COMPUTER","text":"THE COMPUTER The automatic electronic digital computer is a machine that utilizes electronic circuits to manipulate data expressed in a symbolic form according to specific rules in a predetermined but self-directed way. In brief, it is a machine which uses electronic circuits to handle symbolic data. However, even this simplified definition is somewhat hard to absorb as a whole so let's look at its individual parts to understand it better. First of all, the computer is a machine. This means that it is inanimate . As it is non-living, it requires an outside power source and without this source it stops working. This also means it can perform only those activities for which the basic capabilities have been specifically designed into the machine. In other words, it is limited to its designed capabilities and the directions given to it. If separated from its outside power source, it ceases to function. Second, it is automatic. This means that once started, it continues to run without outside interference. Third, it is electronic; that is, it is made up of electronic circuits and runs on electrical energy. Fourth, the computer is a symbol manipulator. It manipulates data, not physical entities. These data are represented as electronic impulses within the machine. These electronic signals are combined to form number (digital) representations of data. Electronic devices are two-state devices. For example, a switch is either on or off, a spot on the surface of a magnetic tape is either magnetized or not magnetized. Therefore, it seems natural and reasonable to use the base 2 or binary number system as the basic data-representation method in the computer. Only two digits exist in the binary number system, 0 (zero) and 1 (one). They can easily be matched to the two states of the electronic devices. Combinations of 0's and l's can be used to represent non-numeric data as well as numeric data. Fifth, the computer must follow specific rules in manipulating data. These rules are, in the main, the rules of Boolean algebra. That is, the computer can perform only the processes of addition, subtraction, multiplication, division, and comparison in addition to data transfer between components. Sixth, the computer must follow a predetermined sequence of processes. That is, someone (the programmer) must prepare a programme for the computer to follow. Finally, the computer can follow the predetermined sequence in a self-directed way. It can store the programme within its own memory and then follow it through under its own direction, without outside"},{"title":"A NATIONAL DISEASE","text":"A NATIONAL DISEASE Julia Elliott looks at television. At any time between four in the afternoon and midnight, at least ten million viewers are sure to be watching television; this figure can even rise to 35 million at peak viewing hours. With such large numbers involved, there are those who would maintain that television is in danger of becoming a national disease. The average man or woman spends about a third of his or her life asleep, and a further third at work. The remaining third is leisure time, mostly evenings and weekends, and it is during this time that people are free to occupy themselves in any way they see fit. In our great 10 grand-fathers' days, the choice of entertainment was strictly limited, but nowadays there is an enormous variety of things to do. The vast majority of the population, though, seems to be quite content to spend their evenings goggling at the television. Even when they go out, the choice of a pub can be influenced by which one has a colour one ; it is, 15 in fact, the introduction of colour that has prompted an enormous growth in the box's popularity, and there can be little likelihood of this popularity diminishing in the near future. If, then, we have to live with the monster, we must study its effects. Firstly, the belief that the great boom in television's popularity is 20 destroying the art of conversation - a widely-held middle-class opinion seems to be false. How many conversations does one hear prefaced with the remarks, 'Did you see so-and-so last night? Good, wasn't it!, which suggests that television has had a beneficial rather than detrimental effect on conversational habits; at least people have 25 something to talk about! Secondly, it is said to be broadening people's horizons by introducing them to new ideas and activities - ideas which may eventually lead them into new hobbies and pastimes. In the last few years, there has been a vast increase in educational programmes, from the more serious Open University, to Yoga and the joys of 30 amateur gardening. Already, then, people have a lot to thank the small screen for, and in all probability the future will see many more grateful viewers who have discovered new pursuits through the telly's inventive genius. Television, the most important invention of the twentieth century, is 35 bound to be exerting a major influence in the life of the modern man. That it will also continue to grow in popularity as the years go by is virtually certain."},{"title":"FAIR PLAY FOR WOMEN'S FOOTBALL","text":"FAIR PLAY FOR WOMEN'S FOOTBALL The Football Association (F. A.) has always been rather traditional in its administration of the game. In 1921 its members elected to ban women from playing football; they didn't say women were not capable of playing football, just that they wouldn't be allowed to play on proper fields with qualified officials in any organised way. And once in force, that rule was rigidly applied for 49 years. What broke down the resistance of the F.A. to women's football was the 1966 World Cup. Female teams began to appear everywhere and within three years established teams were playing football in structured leagues. The Women's Football Association (W.F.A.) was formed in 1969 with 51 clubs as members, and the F.A. revoked its infamous ban in 1970 in the face of strong W.F.A. representation. Other countries followed Britain's example and in 1971 international football bodies F.I.F.A. and U.E.F.A. decided that their members must not only recognise the women's game but take steps to see that it be properly controlled. The first England international women's team was picked in 1972 and won its first game (against Scotland) 3-2. The W.F.A. has now got a domestic membership of 200 clubs playing in 23 leagues. Managers of men's clubs often complain about foreign clubs buying their best players. Well, the same thing happens in women's football. In Italy they play women's football professionally and have bought many of the star players. Sallie Jackson of Fulham and Millwall's Shauna Williams are two of the best players who have gone to play in Italy. 'When a woman has no prospect of getting a job, and is offered the chance to do something she loves- and get paid for it - who can blame her?' commented league official Flo Bilton. Nowadays, in some schools boys and girls can play football together in their school team. You may have seen recent stories about girls who are star players in their boys' school team, but they cannot play in important official games because the F.A. won't allow them to play. F.A. Secretary Ted Croker is coming under increasing pressure from girl players who are angry at being dropped. At senior level women's football differs from the men's game in that the emphasis is on skill rather than strength, on stylish play instead of aggression. Apart from that it is remarkably similar - with the same complaints about fouls, foul language on the field and foul fields."},{"title":"FIRST TO SKI CROSS CONTINENT","text":"FIRST TO SKI CROSS CONTINENT \"NOTHING, NOTHING, nothing giving you protection.\" These words belong to the adventurer Reinhold Messner of Antarctica, who crossed it without the help of dogs or machines, Messner was the first man who reached the top of Mount Everest alone without bottled 5 oxygen. His companion was Arved Fuchs of Germany, the first man to reach both Poles on foot in the same year. The Canadian company Adventure Network ensured that they would support them from air until their starting point. But after arriving at the Canadian camp at Patriot Hills, the two men learned that there was not 10 enough fuel to transport them to the Filchner Ice Shelf, their planned starting point. Instead, they had to set out from the inland edge of the Ronne Ice Shelf. On November 13, 1989, Messner and Fuchs set out on skis. A day later a stiff wind carried off Messner's rubber sleeping pad, which was 15 used as a barrier between him and the icy ground. Four days later they lost their mileage indicator, forcing them to depend on other means to guess the distance they travelled each day. Bad weather, poor radio communication, and difficulty crossing giant fields of ice and snow slowed their arrival at their first supply place at the Thiel Mountains. By 20 the time they arrived, on December 6, Fuchs's feet were suffering from ill-fitting ski boots. Messner complained to their Canadian suppliers: \"If I were alone, I could go twice as fast.\" In his diary entry of November 24, he. had spoken more sympathetically of Fuchs's feet: \"Sore and suffused with blood so badly that even his feet cannot be seen. Every 25 step he takes hurts him .\" Next stop : the South Pole, where they arrived early on New Year's Eve. They were near U.S. Amundsen-Scott Station. Five Americans from the station welcomed them. For Messner it was a moment of mixed emotions: \"You ski a thousand kilometers through complete 30 stillness and vastness, and suddenly you see domes, containers, and masts.\" As for Fuchs, he was \"happy just to be there .\" They left three days later, following the general route across the Polar Plateau, through the Transantarctic Mountains, then onto the Ross Ice Shelf. Because of his sore feet, Fuchs often arrived more than an hour late to camp. Messner didn't want to wait so he preferred to put up the tent by himself. It was a difficult procedure in the high winds. Their occasional use of parachute sails increased their daily mileage. Once, before the Pole, Messner lost control of his sail, fell, and cut open his"},{"title":"EXPLORERS OF AMERICA","text":"EXPLORERS OF AMERICA For many years people believed that Europeans were the first to travel to America and that it was discovered by the Italian explorer Christopher Columbus. But, in fact, many travellers had reached America before him. Some historians claim that sailors from China crossed the Pacific to Mexico in AD 460. According to others, although there is not enough evidence, Asians other than the Chinese crossed the Bering Strait to Alaska long before this date and moved through North America on to South America. Irish explorers may also have visited America in the ninth and tenth centuries. Irish people living in Iceland before the Norsemen, who came from Scandinavia, reached ii in the ninth century. They may have sailed from Iceland to America after the Norsemen arrived in Iceland. The Norsemen themselves may also have visited America. We learn this from their stories. They were used to sailing long distances. Some Norse stories tell of a Norseman called Bjarni Herjolfsson, who visited North America in AD 986. Another Norseman named Leif Ericsson probably lived for a time in Newfoundland in Canada and returned to Greenland. However, the first Western explorer whose success we can be sure about was Christopher Columbus. He left Spain on August 3, 1492, and on October 12th, he arrived in the Bahamas. Columbus thought he had arrived in the Indies, the name then used for Asia. That is why he called the people there Indians. He spent many weeks sailing around the Caribbean and then went back to Spain. He made several more voyages to the New World until 1504, though he never actually landed in North America. However, America was named after another Italian explorer, Amerigo Vespucci, who was a friend of Columbus' and who later explored the coastline of the New World. Amerigo Vespucci (1451-1512) was a successful Florentine businessman and navigator who was knowledgeable in geography and cosmography. He was also the financial representative of the Medici, who were influential people in the fifteenth century. It was mainly for these reasons that he got involved in various expeditions at the time , made acquintance of Columbus and was of great help to hirr Although he did not actually join in any of the Columbus expeditions, he was responsible for their organisation. He obtained the ships and the necessary supplies, such as food. Vespucci's own expeditions took place at a later date. To find answers to the questions raised by Columbus' claims to have reached"},{"title":"A ROSE-RED CITY","text":"A ROSE-RED CITY A rose-red city, half as old as time! These words describe the ancient, ruined city of Petra, hidden in the mountains of southern Jordan. The rose-red colour comes from the sandstone of the mountains into which caves, temples, tombs and monuments were built. Because it was surrounded by mountains, this beautiful city stayed undiscovered through the ages until the 18th century, when the archeologists found the way in. The first scientific investigation of the place, however, was possible towards the end of the following century. Today tourists can enter Petra through the same deep path, which twists for one mile through the mountain. At times, it is so narrow that the walls block out the sky leaving the traveller in complete darkness. At the end of the road the darkness suddenly turns into brilliant sunshine in the Wadi of Urn, where the magnificient columns of the 15 Treasury, Petra's most famous monument, tower up to the blue sky. The central city area lies in the Wadi Mousa and this is mainly where the most beautiful walls, steps, fountains and temples are found. Now the city lies quietly under the hot desert sun, and nobody lives there except the archeologists, museum keepers and guides and a small 20 number of Bedouin families who still inhabit the caves high up on the hillsides. And the tourists, of course, who come every year to see the ancient, secret city of rose-red stone. They listen carefully to the guides who tell them that Petra was once a wealthy city of the ancient world. It began as a watering place for the caravans and developed into an 25 important trading centre. The hills around Petra were settled in the fifth century B.C. by the people of an ancient tribe, the Edomites, who began to build the city. However, it was actually the Nabateans, who settled the Wadi Mousa in 310 B.C. that brought wealth and prosperity to the city. They built 30 beautiful temples to worship the sun and made delicately painted pottery. They also established a well-developed administrative system to live in peace. A long-line of Nabatean kings came to an end in 106 AD, when Petra was occupied by the Romans and became part of the Roman province of Arabia. At first, the city flourished under Roman 35 administration. The Romans built beautiful monuments and made new improvements to the city, such as the Collonade Street, which is very famous among archeological circles. However, as the economy of the whole eastern area began to change, the trade routes disappeared and Petra declined. By the sixth century AD, there was no longer any 40 mention of Petra in ancient writings."},{"title":"STUNTPEOPLE","text":"STUNTPEOPLE Would you jump off the Great Wall of China for £300 a day? A stuntperson is a man or woman who does all the dangerous acting work in films. This can be anything from a simple fall into a swimming pool, to jumping from the top of a very tall building. It sounds like a crazy job that you'd have to be mad to try, but there are actually lots of people who want to do it. Sarah Franzi, twenty-four, is one of Britain's sixteen professional stuntwomen. (There are a hundred and sixty stuntmen in the country.) We asked Sarah how she came to be a stuntwoman. \"From when I was young I'd trained to be a dancer, and for seven years after school I was rarely out of work. But a dancer's professional life is pretty short, and my father suggested I should think about doing stunt work after I'd given up dancing. I thought about it for the next two years. Then I decided to take the risk and started the training course. For six months, I worked really hard every day, all day. I had to learn different skills - sub-aqua, sky-diving, horse-riding, etc.\" Sarah finished the course and applied to the Stunt Committee (the group which decides whether you're accepted as a professional stuntperson or not). Two weeks after she was accepted, Sarah was throwing herself off the Great Wall of China in Superman IV. \"I was very lucky to get work so quickly. I had a small part, playing a tourist who fell off the Wall after an earthquake. The tourist was rescued from death by Superman, of course. Actually, I fell 25 metres onto cardboard boxes! You can't use anything softer than those. like mattresses for instance, because you'd bounce back up into view of the camera. Instead, you just have to learn to fall properly. It's quite dangerous but I enjoy taking risks which are part of the job. HOW TO BECOME A STUNTPERSON To be accepted as a stuntperson, you have to be between 18-30 years old and a full member of Equity, The Actors' Union. You also have to reach a very high standard in at least six of the skills listed below. They should fall within at least three of the groups, but not more than two of the skills should fall within any one group. The groups are: Group A - Fighting Group B - Falling Fencing, Boxing Diving Judo or Wrestling Parachuting"},{"title":"FRIENDSHIP","text":"FRIENDSHIP Friends play an important part in our lives, and although we may take the fact of friendship for granted, we often don't clearly understand how we make friends. While we get on well with a number of people, we are usually friends with only a very few - for example, the average among students is about 6 per person. Moreover, a great many relationships come under the term 'friendship'. In all cases, two peopie like one another and enjoy being together. However, the degree of closeness between them and the reasons for their mutual interest vary greatly. In other words, there are many reasons for why two people share the same interest in each other. At the very beginning, much depends on how people meet and on positive first impressions. As we get to know peopie, we take into consideration things like age, physical attractiveness, economic and social status and intelligence. Although these factors may not seem very important, it is difficult to be friends when there is a big age difference or when the backgrounds are different. As we get closer, we become interested in actual behaviour, facial expression and tone of voice. Friends will stand closer together and will spend more time looking at each other than people who just know each other. Smiles and soft voices also express friendliness. It is because they may send out the wrong signals that shy people often have difficulty in making friends. To illustrate, their nervousness may be mistaken for unfriendliness. People who do not look at the eyes of those they are speaking to are not trusted. However, those people may simply lack confidence. Some relationships become stronger with argument and discussion, but usually intimate friends have similar ideas and beliefs and share the same attitudes and interests. Although some people become close friends immediately, it usually takes time to reach this point. The more intimate people become, the more they rely on one another. People want to do friends favours and hate to disappoint them. There are no friendship ceremonies but the support and understanding that results from shared experiences and feelings seems to create a powerful relationship which can overcome differences in background and age."},{"title":"AMERICAN CITIES","text":"AMERICAN CITIES We can trace all the problems of the American cities back to one starting point: we Americans don't like our cities very much. That is strange. More than three-fourths of us now live in cities, and more are flocking to them every year. We are told that the problems in our cities are receiving more attention in Washington. However, it is historically true: in the American psychology, the city has been a basically suspect institution. Americans have related urban areas to Europe, which they believed to be full of dishonesty and illegal behaviour. Moreover, they believed that cities lacked spaciousness and innocence, so easily found in rural areas. Therefore, it can be said that a strong anti-urban attitude runs through American thinking. The settlement of America was a reaction to the harsh conditions in European industrial centres. People came to America because there was available land and they wanted to escape from the bad influences of the cities. What has this got to do with the unpleasant situations of the modern cities? I think it has a lot to do with it. The United States has never thought that the American cities were worthy of improvement. It was believed that cities should support themselves. The reason behind this is not directly the result of a 'the city is evil, and therefore, we will not help it1 attitude. It is more indirect. Billions of dollars are spent to preserve the family farms but nothing is done about an effective programme for jobs in the cities. In addition, although there have long been government agencies which deal with agriculture, small business, veterans and commerce, the Department of Urban Development wasn't set up until 1965. Now consider this: the most important housing law was not the law that provided public housing; it was the law which provided low-interest mortgages for Americans who wanted to buy a home. More than anything, this made the suburban dream a reality. 800,000 middle-class New Yorkers left the city for the suburbs dreaming of grass and trees and a place for their children to play in. They were replaced by unskilled workers, who represented a further cost to the cities. In other words, the world of urban America has become a dark place which doesn't deserve support or help in the minds of Americans."},{"title":"FREE TRADE","text":"FREE TRADE In the nineteenth century, economists believed that there were limits to human wealth. In their opinion, when one man became richer, another grew poorer. If a country wished to improve its standard of living, it had to export more than it imported. So, in Britain, the main argument in those days was about free trade and protectionism. The owners of the Lancashire textile factories naturally supported free trade because they wanted to export as many products as possible. In their view, it would be better for the country if they sold more goods to other countries. The landowners and farmers, on the other hand, were afraid of foreign competition. Free trade won because Britain at that time was able to buy as many cheap raw materials as it needed from its colonies and sell them again as finished goods. Import controls would have damaged its position as the strongest manufacturing nation in the world. In America, a similar belief in free trade eventually led to a crisis in economy - the Wall Street crash, in 1929. People in the USA were benefiting from the expansion of the American economy in the First World War. They became convinced that money automatically makes more money and speculative investments are always profitable. When they lost confidence in the stock market, the effects of the 'crash' were felt all over the world. Following the Wall Street crash, the economist John Maynard Keynes introduced a new theory. In simple terms, his solution to the problem was that there is no fixed limit to human wealth. Factories can always produce more if people can afford to buy the goods. Therefore, governments must help factories and create jobs, and the factories must pay good wages. In this way, every worker becomes a consumer. For a time, especially after the Second World War, Keynes's theory was successful. It kept the factories working and maintained full employment. In the 1970s, however, several unpleasant facts emerged. For one thing, we began to realise that the world's resources are limited. We cannot go on producing more and more because we are using up our resources too fast. Secondly, more efficient production is often achieved with fewer workers and bigger machines, not the other way round. Above all, the industrialised nations of the world consume more of the world's resources than they produce. But it is difficult to make people economise when they think that they create more unemployment by spending less money."},{"title":"BRITISH UNIVERSITIES","text":"BRITISH UNIVERSITIES There are 44 universities in Britain. These are divided into three types: the old established universities, such as Oxford (founded 1249), Cambridge and Edinburgh. Oxford and Cambridge together are often called Oxbridge; the 19th century universities such as London and Manchester; the new universities established after World War IT, such as Essex, Lancaster, The New University of Ulster. Characteristics of the universities: The old universities consist of a collection of independent colleges. Together they form the university, which is governed by a senate, the main decision-making body in the university. Some 19th century universities have a combination of independent colleges and research institutes. London University is an example. Other universities developed during the 19th century out of single university colleges in provincial cities. Because their original buildings were often built of brick, they are sometimes called 'redbrick' universities. The new universities were founded after World War II because the demand for higher education had increased. So many more people wanted to study for a degree after 1945 that even the building of new universities did not solve the problem. In certain areas of the country, the existing colleges of technology and other further education colleges were combined to form polytechnics. Thus, Britain was able to meet the increasing demand for higher education degrees. There are now 30 polytechnics, offering courses in the full range of subjects, from engineering to art. The Council of National Academic Awards (CNAA) supervises polytechnic examinations and makes sure that a high standard is maintained in all polytechnics. Some special features of British university life: Over 90% of full-time students receive grants from public or private funds. The grants are paid towards tuition and living costs. Higher education is free for those people whose parents' income is below a certain level. Degree courses, leading to a B.A. or B.Sc, usually take three years. It is almost impossible to move from one university to another during a degree course, but if you do that, you will have to begin the course again. University students attend lectures.They also attend tutorials. These are discussion classes for a small group of students. In these classes, a tutor sets work for his students. Then, the teacher and the students get together every week or fortnight to discuss and criticise the work done by each student."},{"title":"WELCOME TO PRESTEL","text":"WELCOME TO PRESTEL Among the latest developments in telecommunications are viewdata systems which use both telephone and television. The extract below is from a brochure advertising \"Prestel\". Prestel is the first of a new kind of information service. It is currently being used by thousands of customers in Britain and overseas, large businesses, small firms, colleges, farms, hotels, high street shops and in a growing number of private homes. They find Prestel a quick and very easy way to get the information they need every day, as well as offering powerful two-way communications. An adapted television set and an ordinary telephone line link Prestel customers to an enormous range of computer-held information. To call up an item from the thousands available, you simply press the numbered buttons on a keypad the size of a pocket calculator. The information on Prestel is organised in 'pages' - a page is a screenful of information. As soon as you ask for a particular page, the computer sends it instantly down the telephone line and it appears on the screen of your set. Prestel can store hundreds of thousands of pages, but finding the information is easy. There are special index pages on Prestel to help you, and also printed directories. You can learn how to use the system in a few minutes without any special training. The information on Prestel is supplied by hundreds of independent organisations called Information Providers, who are in direct contact with the central computer and edit their pages to keep them constantly up-to-date. Prestel is, therefore, an important medium for fast-changing information like foreign exchange rates, the availability of airline seats, or the latest sports results. It can, of course, bring you business information, the latest news, detailed guides to the countries of the world, office space to rent, theatre and cinema guides, and more. The first group of people to take to Prestel in a big way were travel agents, and there are now over 200 tour operators, ferry companies and airlines on Prestel detailing fares, timetables and up-to-date availability, all at the press of a button. Such information can be very valuable when planning holidays and business trips. With its vast range of topics, Prestel can be thought of as an electronic publishing medium. But it is more than that. As well as receiving information, users can send messages to each other on a special computer. They can also send messages to Information Providers using Response Pages. This allows them to order goods via Prestel, book a hotel room, or reserve a seat at the theatre."},{"title":"ENERGY-EFFICIENT BUILDINGS","text":"ENERGY-EFFICIENT BUILDINGS Architects, builders, construction managers and corporate planners are beginning to realise that energy-efficient buildings are not only politically correct but they are also cheaper to operate and offer a healthier environment for workers. These advantages are being demonstrated by such structures as the Natural Resources Defense Council headquarters in New York City, the Environmental Defense Fund building in Washington, the Internationale Nederlanden Group Bank in Amsterdam and a regional government centre now under construction in Marseilles. Even the famous Wal-Mart chain is getting in on the act. The retailer is designing an 'environmental store' in Lawrence, Kansas, that could become the prototype for all future Wal-Marts. This first model will be built mostly of wood and concrete block-materials that require 33% less energy to produce than steel, and feature an elaborate, high-efficiency lighting system enhanced by skylights that use holographic films to spread daylight evenly over the space. The store will have its own recycling centre so that shipping boxes never have to leave the site. And for the ultimate in recycling, the entire structure is designed to be converted easily to housing in the event that Wal-Mart decides to leave the building. The motivation for going green is sometimes idealistic, sometimes materialistic and usually a little of both. There is no question that traditional office structures are environmentally wasteful and destructive. In the U.S., such buildings account for one-third of the nation's peak electricity consumption: they are costly to operate and will become even more so when new energy taxes go into effect. Furthermore, office air conditioners, together with the manufacturing processes used to make building materials, emit nearly one-quarter of all ozone-depleting chlorofluorocarbons. Of more immediate concern to workers is the miserable quality of the air they breathe. Because of their design and the synthetic materials they employ, between one-third and one-half of all commercial buildings are filled with polluted air, in some cases 100 times as polluted as the air on the other side of the windows. As awareness of such problems grows, so does the movement to go green. The headquarters of the National Audubon Society is another example of energy-efficient buildings. It carries a little more than half the air conditioning capacity that the buildings of its size have. Furthermore, the building employs the latest lighting technology, including tiny sensors that adjust office illumination depending on whether or not people are actually using the room and how much light"},{"title":"AUTOMATION","text":"AUTOMATION Automation is a component of technology. Technology, on the other hand, is the application of science to daily life. Man lived hundreds of thousands of years without it, until the Industrial Revolution in the eighteenth century. But 90 per cent of the people lived in poverty then. Since the first Industrial Revolution, and during the present day 'automation revolution', the number of people who live in poverty in the industrialised countries has fallen to about 20 per cent. Although technology solves many problems, it also creates many new ones. In the first place, new technology is necessary to correct the harmful effects of previous technology; for example, if 'after burners' were made for automobile exhausts, air would be as clean as it was before the automobile polluted it. Secondly, a new technology may be possible but not economical, as in the case of solar energy. Thirdly, nearly all forms of technology can be for the good of man. But unless technological advances are clearly understood, they can do more harm than good. This is also true for automation. Furthermore, mass production techniques have produced a dependency on machines, which hasn't been full recognized yet. Although living standards in the industrialized world are the highest in history, much of industry has become dependent on automated machinery, and people have become dependent on its products, such as washers, dryers and automobiles. 1. When did man begin to apply science to daily life? 2. Are 'after burners' being used in automobiles at present? 1. Correct the statements below. a) Only 20% of the people in the world are poor. b) Solar energy is being used widely because it is both possible and economical."},{"title":"TYPHOONS","text":"TYPHOONS Typhoons destroy about 1.5% of the national product of South East Asian countries every year. Much of this damage cannot be avoided, even using the most modern technology. However, because of the need to give people as much warning as possible, an international network of meteorological stations keeps watch on the movement of typhoons. A typhoon warning centre, established by the UK on the island of Guam in 1959, regularly sends aircraft into suspected storm areas to measure winds, movement and pressure. Orbiting continuously around the world, satellites take pictures and plot changes in the direction of storms. However, problems still remain because 24-hour forecasts of storm movements can be inaccurate by as much as 100 miles, and 3-day predictions are often 300 miles off course. For example, in 1960 Typhoon Mary appeared to be heading for land about 70 miles west of Hong Kong, but it changed course during the night and smashed through the centre of the area in the early hours of the morning. This typhoon left 11 people dead, 11 missing, 130 injured and about 300 boats sunk or wrecked. Another example is Typhoon Vera, which crashed across Taiwan on August 1, 1977. It left 38 people dead and 175 injured, and crippled the seaport city of Keelung. Power supplies to about 60% of Taipei's two million people were cut for about two days and the enormous gales flattened 54 houses. They partially damaged another 50 in the island's northern and central areas. Among other effects, two major fires broke out in Taipei City and one of these burned down 5 stores. Needless to say, the cost of all this damage was enormous and disasters of this kind are unfortunately repeated many times a year throughout the world. Control of typhoons lies in understanding them better. Good predictions are a method of control because action can be taken to limit their destructive force. For better understanding and improved predictions of typhoons, scientists must learn much more about tropical weather, and some major research projects, such as the Global Atmospheric Research Programme, begun in 1974, are now under way. Meteorologists also consider the possibility of modifying the typhoon's direction by seeding hurricane clouds to force them to release their rain before they would under normal conditions. However, researchers in Asia are doubtful about the advisability of interfering with typhoons although they cost the region a great deal in money and lives. They warn that because man does not yet have sufficient knowledge, he should not yet begin large-scale weather"},{"title":"THE OCEAN FLOOR","text":"THE OCEAN FLOOR Almost three-fourths of the earth is under the ocean. Until recently, people didn't know what the ocean bottom, or floor, was like. The ocean floor is substantially different from what we thought. After World War I, scientists made a new machine. This machine told them what the bottom of the ocean was like and told how deep the ocean is in each place. For a long time, many people thought the ocean floor was flat. Now we know that there are large mountains and deep holes on the ocean floor. There are three kinds of ocean floor under the water: the continental shelf, the continental slope, and the deep ocean floor. The continental shelf goes all around the continents. (The continents are North America, South America, Europe, Australia, Asia, Africa, and Antarctica.) The water is not more than 600 feet deep above the continental shelf. The sun can only shine down about 600 feet into the water. Plants and animals need sunshine to live so most of the fish in the ocean live above the continental shelf. The continental shelves were part of the continents many thousands of years ago. Later, the water came over them. That's why oil and minerals can be found in the continental shelf as well as in the land. Oceanographers are scientists who study the oceans. They think the continental shelves will be very important to us some day. They are trying to learn how to live and work under the water, at dephts of 500 feet or more. The continental slope begins where the continental shelf ends. At the edge of the continental shelf, the continental slope suddenly goes down two or three miles. Some continental slopes are like the side of a mountain; some are like a wall. All are very high. The largest one is five miles high, which is higher than any slope on the land. There are large canyons in the continental slopes. The canyons look like the Grand Canyon, but they are larger. The deep ocean floor, which is the real bottom of the ocean, begins at the end of the continental slope. It is the largest and deepest of the three kinds of ocean bottom and it makes up half of all the earth's surface. Oceanographers have found a large range, or line, of mountains called the Mid-Atlantic Ridge on the ocean floor. This mountain range is 10,000 miles long. It goes through the Atlantic Ocean from Iceland to southern Africa. Many of the mountains in this range are 10,000 feet"},{"title":"CONSUMER PRESSURE","text":"CONSUMER PRESSURE Consumer pressure is one of the natural phases of an advanced industrial society. As a society reaches a certain stage in development, concern over consumer issues makes itself felt. The United States led the way, other countries gradually followed suit. The Consumers' Union of the United States was founded in the 1920's; Ralph Nader began to make himself known as the American consumer spokesman in the 1960s when he attacked the American car industry in his book Unsafe at any Speed. He succeeded in getting certain cars withdrawn from sale to the general public. He followed this by investigating other areas where the consumer was at a disadvantage as a result of decisions by manufacturers, retailers or government. He has been spectacularly successful, largely because as a lawyer he knows how to function within the American legal system. His effect on British development has principally been as an example. Very close parallels cannot be drawn, because the British legal system is different. Until recently, confrontation and direct action has not been the British way of settling matters; settlement has been reached by gentlemanly chats and invitations to lunch and a visit to the works or factory afterwards. This combination of factors has a lot to do with the reasons why consumer action in this country has only come alive over the last decade or so. Nevertheless, inflation has also had a hand in it. The price of buying equipment for one's life and home comes to be questioned at a time of rapid inflation and uncertain economic growth. The goods and services are available in ever-increasing abundance but for many individuals the money doesn't go round them all. The pressure on incomes both from inflation and from the wide attractive range of goods on which money can be spent means that people begin to look more critically at prices. Having spent their money, they resent the occasions when there is some cause to complain about goods or services which do not come up to expectations. And on attempting to complain, they find themselves too often defeated by the stone wall of manufacturers' and retailers' indifference to complaints. So then consumer action started. People with a complaint wrote to a person whom they could identify in some way: their MP, a journalist, a broadcaster. As these letters continued to come in, the politicians and the media began to realise that there was a problem area, an area where people come up against difficulties which they cannot handle. In trying to sort out some of the complaints, they discovered just how difficult the situation is, how hard it is to complain, and how much specialised knowledge is required. This consumer protection action began to achieve a popularity it had never known before and began to attract support from the media and in Parliament."},{"title":"EVERYTHING MUST GO SOMEWHERE","text":"LAW OF CONSERVATION OF MATTER: EVERYTHING MUST GO SOMEWHERE We always talk about consuming or using up matter resources, but actually we don't consume any matter. We only borrow some of the earth's resources for a while - taking them from the earth, carrying them to another part of the globe, processing them, using them, and then discarding, reusing, or recycling them. In the process of using matter, we may change it to another form. But we can neither create nor destroy any measurable amount of matter. This results from the law of conservation of matter: In any ordinary physical or chemical change, matter is neither created nor destroyed but merely changed from one form to another. This law tells us that we can never really throw any matter away. Everything must go somewhere and all we can do is to recycle some of the matter we think we have thrown away. We can collect dust and soot from the smokestacks of industrial plants, but these solid wastes must then go somewhere. Cleaning up smoke is a misleading practice, because the invisible gaseous and very tiny particle pollutants left are often more damaging than the large solid particles that are removed. We can collect garbage and remove solid wastes from sewage, but they must either be burned (air pollution), dumped into rivers, lakes, and oceans (water pollution) or deposited on the land (soil pollution and water pollution if they wash away). We can reduce air pollution from the internal combustion engines in cars by using electric cars. But since electric car batteries must be recharged every day, we will have to build more electric power plants. If these are coal-fired, their smokestacks will add additional and even more dangerous air pollutants to the air; more land will be scarred from strip mining, and more water will be polluted from the acids that tend to leak out of coal mines. We could use nuclear power plants to produce the extra electricity needed. But then we risk greater heat or thermal pollution of rivers and other bodies of water used to cool such plants. Although we can certainly make the environment cleaner, talk of 'cleaning up the environment' and 'pollution free' cars, products, or industries is a scientific absurdity. The law of conservation of matter tells us that we will always be faced with pollution of some sort. Thus, we are also faced with the problem of trade-off. In turn, these frequently involve subjective and controversial scientific, political, economic, and ethical judgments about what is a dangerous pollutant level, to what degree a pollutant must be controlled, and what amount of money we are willing to pay to reduce a pollutant to a harmless level."},{"title":"THE PALEOLITHIC AGE","text":"1 THE PALEOLITHIC AGE Life in the Paleolithic Age was perilous and uncertain at best. Survival depended on the success of the hunt, but the hunt often brought sudden and violent death. In some instances, Paleolithic people were their own worst enemies. At times they fought each other for control of hunting grounds, and some early hunters played an important part in wiping out less aggressive people. On occasion Paleolithic people seem to have preyed on one another. One of the indications that Neanderthal Man was at times cannibalistic, that is, hunted human beings, comes from a cave in Yugoslavia, where investigators found human bones burned and split open. On the other hand, the people of the Paleolithic Age were responsible for some striking accomplishments. The most obvious one is the use of the stone implements that gave the period its name. The ability to make and use tools gave Paleolithic people the means to change their environment. They could compete with larger and stronger animals and could hunt animals faster and more ferocious than themselves. In the frozen wastes of the north, they hunted the mammoth, the woolly rhinoceros, and the reindeer. In milder southern climates, they hunted deer, squirrels, and rabbits. The demands of the hunt sharpened their intelligence. They supplemented their diet by collecting fruits, nuts, and seeds, and in the process they discovered the plant world around them. Paleolithic people learned to control fire and to make clothes from the skins of their prey: The most striking accomplishments of Paleolithic people were intellectual. The development of the human brain made possible thought and symbolic logic. An invisible world opened up to homo sapiens. Unlike animals, whose behaviour is the result of instinct, Paleolithic people used reason to govern their actions. Thought and language permitted the experience of the old to be passed on to the young. Paleolithic people produced the first art. They decorated the walls of their caves with paintings of animals and scenes of the hunt. They also began to fashion clay models of pregnant women and of animals. These first examples of art illustrate the way in which early men and women communicated to others their experience of the past and hope for the future. Many of the paintings, such as those at Altamira in Spain and Lascaux in France, are found deep in the caves, in areas not easily accessible. These areas were probably places of ritual and initiation» where young men were taken when they joined the ranks of the hunters."},{"title":"TRENDS","text":"TRENDS How will society change in the next century? Debbie Kent looks at some future trends. Forecasting the future is a risky business. But that doesn't mean we can't say anything about the next decade. In fact, one trend is almost completely predictable: population growth. The population of the UK, currently just over 57 million, is expected to keep rising to hit 59 million by 2001. Most significant is how the structure of that 59 million will change. The number of 16 to 19-year-olds has been falling since the baby boom generation reached adolescence in the early 1980's, and it will stay low through the 90's and into the next century. On the other hand, the proportion of older people will grow. By 2001 more than 45% of us will be over 50. Some implications for the next century are clear. Fewer school leavers and a workforce that is growing only slowly will have an impact on the labour market. Employers may have to look elsewhere to fill vacancies - to women with children and older people. At the other end of the scale, the growth in the number of elderly people means a fresh look at the idea of retirement. For the first time most of us can expect to have 30 years of retirement to look forward to. Although society will still be made up largely of conventional families, there is a growing trend for fewer stereotypical households: more homes will consist of single adults. Then there will be households split by divorce, mixed households of second marriages, and three generations living under one roof. The average household size is predicted to fall from 2.7 people to 2.4 people by 2001. Finance is one of the areas that is likely to undergo a fundamental change between now and the year 2001. If full European monetary union takes place, we could routinely be using 'ECU' or some other denomination of Euro-wide currency even for our spending at home. Will we be using money at all? The answer is almost certainly yes, for low-value transactions and for that small but intractable section of the population that does not have a bank account. But the cheque should be pretty much on the way out by 2001. According to Roger Taylor of Midland Payment Transmission Services, developers of payment card systems: \"Transactions will be primarily plastic-based but people won't carry as many credit cards. . So the walletful of plastic is likely to be replaced by a single multi-function card that will act as cheque book, credit card, cash dispenser and debit card. Haven't we got that already? The difference is that the 2001 version will be an"},{"title":"HOW TO STOP COMPUTER ABUSE","text":"HOW TO STOP COMPUTER ABUSE More and more, the operations of our businesses, governments, and financial institutions are controlled by information that exists only inside computer memories. Anyone clever enough to modify this information for his own purposes can reap substantial rewards. Even worse, a number of people who have done this and been caught at it have managed to get away without punishment. A recent Stanford Research Institute study of computer abuse was based on 160 case histories, which probably are just the tip of the iceberg. After all» we only know about the unsuccessful computer crimes. How many successful ones have gone undetected is anybody's guess. For the last decade or so, computer programmers have concentrated on making it easy for people to use computer systems. Unfortunately, in some situations the systems are all too easy to use; they don't impose nearly enough restrictions to safeguard confidential information or to prevent unauthorized persons from changing the information in a file. A computer system needs a sure way of identifying the people who are authorized to use it. The identification procedure has to be quick and convenient. Besides, it should be so thorough that there is little chance of the computer being fooled by a clever imposter, who dishonestly pretends to be an authorized user. At the same time, the computer must not reject legitimate users. Unfortunately, no identification system currently in use meets all these requirements. At present, signatures are widely used to identify credit-card holders, but it takes an expert to detect a good forgery. Sometimes even a human expert is deceived, and there is no reason to believe that a computer could do any better. A variation is to have the computer analyse a person's hand movements as he signs his name instead of analysing the signature itself. Advocates of this method claim that different persons' hand movements are sufficiently distinct to identify them. And while a forger might learn to duplicate another person's signature, he probably would not move his hand exactly the way the person whose signature he was forging did. Photographs are also sometimes used for identification. But, people find it inconvenient to stop by a bank or credit-card company and be photographed. Companies might lose business if they made the pictures an absolute requirement. Also, photographs are less useful these days, when people frequently change their appearance by changing the way they wear their hair. Finally, computer programmes for analysing photographs are still highly experimental."}]
+;
+
+// ─── STATE ────────────────────────────────────────────────────
+let currentUnit = 0;
+let currentWord = null;
+let currentData = null;
+let notebook = JSON.parse(localStorage.getItem('rw_notebook') || '[]');
+let nbTab = 'verb';
+let quizScore = 0, quizTotal = 0;
+
+// ─── INIT ─────────────────────────────────────────────────────
+function init() {
+  buildDrawer();
+  loadUnit(0);
+  updateNbBadge();
+}
+
+function buildDrawer() {
+  const list = document.getElementById('drawerList');
+  PASSAGES.forEach((p, i) => {
+    const saved = notebook.filter(w => w.unit === p.title).length;
+    const el = document.createElement('div');
+    el.className = 'drawer-item' + (i === 0 ? ' active-unit' : '');
+    el.id = 'di-' + i;
+    el.innerHTML = `<div class="di-num">ÜNİTE ${i+1}</div>
+      <div class="di-title">${p.title}</div>
+      ${saved ? `<div class="di-count">${saved} kelime kaydedildi</div>` : ''}`;
+    el.onclick = () => { loadUnit(i); closeDrawer(); };
+    list.appendChild(el);
+  });
+}
+
+function loadUnit(idx) {
+  currentUnit = idx;
+  const p = PASSAGES[idx];
+  document.getElementById('topUnitNum').textContent = 'ÜNİTE ' + (idx+1);
+  document.getElementById('topUnitName').textContent = p.title;
+  document.getElementById('unitTitle').textContent = p.title;
+  document.getElementById('unitMeta').textContent = `${p.text.split(' ').length} kelime · Tıkla ve öğren`;
+
+  // Highlight active drawer item
+  document.querySelectorAll('.drawer-item').forEach((el,i) => {
+    el.classList.toggle('active-unit', i === idx);
+  });
+
+  // Render clickable words
+  const body = document.getElementById('textBody');
+  const words = p.text.split(' ');
+  body.innerHTML = words.map((w, i) => {
+    const clean = w.replace(/[^a-zA-Z'\-]/g, '').toLowerCase();
+    const saved = notebook.find(n => n.word.toLowerCase() === clean);
+    const cls = saved ? 'word saved-' + saved.type : 'word';
+    return `<span class="${cls}" data-w="${clean}" data-i="${i}" onclick="clickWord(this)">${w}</span> `;
+  }).join('');
+
+  document.getElementById('readingArea').scrollTop = 0;
+  document.getElementById('prevBtn').style.opacity = idx === 0 ? '0.3' : '1';
+  document.getElementById('nextBtn').style.opacity = idx === PASSAGES.length-1 ? '0.3' : '1';
+}
+
+// ─── WORD CLICK ───────────────────────────────────────────────
+function clickWord(el) {
+  const word = el.dataset.w;
+  if (!word || word.length < 3) return;
+  
+  // Clear previous active
+  document.querySelectorAll('.word.active').forEach(w => w.classList.remove('active'));
+  el.classList.add('active');
+  
+  currentWord = word;
+  currentData = null;
+  
+  const isSaved = notebook.find(n => n.word.toLowerCase() === word.toLowerCase());
+  
+  document.getElementById('popWord').textContent = word;
+  document.getElementById('popType').className = 'popup-type type-loading';
+  document.getElementById('popType').textContent = 'Analiz ediliyor...';
+  document.getElementById('popBody').innerHTML = `<div class="popup-loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div><span>Claude analiz ediyor...</span></div>`;
+  
+  const saveBtn = document.getElementById('saveBtn');
+  if (isSaved) {
+    saveBtn.textContent = '✓ Zaten Kaydedildi';
+    saveBtn.className = 'save-btn saved';
+  } else {
+    saveBtn.textContent = '＋ Deftere Ekle';
+    saveBtn.className = 'save-btn';
+  }
+  
+  document.getElementById('popup').classList.add('open');
+  analyzeWord(word);
+}
+
+async function analyzeWord(word) {
+  // Yükleniyor ekranı
+  document.getElementById('popType').className = 'popup-type type-loading';
+  document.getElementById('popType').textContent = 'Gemini analiz ediyor...';
+  document.getElementById('popBody').innerHTML = '<div class="popup-loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div><span>Gemini düşünüyor...</span></div>';
+  document.getElementById('saveBtn').style.display = 'none';
+
+  // KENDİ GEMINI API ANAHTARINI BURAYA YAZ (Tırnaklar kalacak!)
+  const GEMINI_API_KEY = "AIzaSyBs0ubMlleVCeMtsE6tmchREJvAq-_kJiE"; 
+
+  const context = PASSAGES[currentUnit].text.substring(0, 500);
+  
+  const prompt = `You are a vocabulary analysis assistant for Turkish students studying English. Analyze the word "${word}" as used in this academic text context:
+
+"${context}"
+
+RULES:
+1. If the word is a proper noun (person name, place name) or scientific/chemical formula: return type "SKIP".
+2. If type is Verb, Adjective, Adverb, or Conjunction: analyze normally.
+3. If the word is a Noun or any other word worth knowing (NOT a proper noun): return type "Other".
+4. Skip ONLY extremely common words (the, a, an, is, are, was, were, be, have, has, do, did, will, would, in, on, at, to, for, with, from, by, and, or, but).
+5. Return JSON only, no other text.
+
+Return this exact JSON format:
+{"type":"Verb|Adjective|Adverb|Conjunction|Other|SKIP","tr":"Turkish meaning (exam-relevant)","syn":["synonym1","synonym2"],"mnemonic":"Short funny/absurd mnemonic in Turkish based on pronunciation - max 20 words"}
+
+If the word should be skipped, return: {"type":"SKIP"}`;
+
+try {
+    // Senin panelinde yazan modeli (gemini-2.5-flash) kullanıyoruz
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { response_mime_type: "application/json" }
+      })
+    });
+    
+    const data = await resp.json();
+    
+    if (data.error) {
+       throw new Error(data.error.message);
+    }
+    
+    let text = data.candidates[0].content.parts[0].text;
+    text = text.replace(/```json|```/g, '').trim();
+    const result = JSON.parse(text);
+    
+    if (result.type === 'SKIP') {
+      document.getElementById('popBody').innerHTML = '<div class="popup-error">Bu kelime sınav için önemli değil.</div>';
+      document.getElementById('popType').textContent = 'GEÇ';
+      document.getElementById('popType').className = 'popup-type type-loading';
+      document.getElementById('saveBtn').style.display = 'none';
+      return;
+    }
+    
+    document.getElementById('saveBtn').style.display = '';
+    currentData = { ...result, word: word.toLowerCase(), unit: PASSAGES[currentUnit].title };
+    
+    const typeClass = {'Verb':'verb','Adjective':'adj','Adverb':'adv','Conjunction':'conj','Other':'other'}[result.type] || 'other';
+    const typeLabel = {'Verb':'FİİL','Adjective':'SIFAT','Adverb':'ZARF','Conjunction':'BAĞLAÇ','Other':'DİĞER'}[result.type] || result.type;
+    
+    document.getElementById('popType').className = 'popup-type type-' + typeClass;
+    document.getElementById('popType').textContent = typeLabel;
+    
+    const isSaved = notebook.find(n => n.word.toLowerCase() === word.toLowerCase());
+    if (isSaved) {
+      document.getElementById('saveBtn').textContent = '✓ Zaten Kaydedildi';
+      document.getElementById('saveBtn').className = 'save-btn saved';
+    } else {
+      document.getElementById('saveBtn').textContent = '＋ Deftere Ekle';
+      document.getElementById('saveBtn').className = 'save-btn';
+    }
+    
+    document.getElementById('popBody').innerHTML = `
+      <div class="popup-tr">${result.tr}</div>
+      <div class="popup-syn"><strong>Eş Anlamlı</strong><br>${result.syn.join(' · ')}</div>
+      <div class="popup-mnemonic">${result.mnemonic}</div>
+    `;
+    
+  } catch(e) {
+    document.getElementById('popBody').innerHTML = '<div class="popup-error">HATA BİLGİSİ: ' + e.message + '</div>';
+    console.error("Gemini API Hatası:", e);
+  }
+}
+function closePopup() {
+  document.getElementById('popup').classList.remove('open');
+  document.querySelectorAll('.word.active').forEach(w => w.classList.remove('active'));
+  currentWord = null;
+}
+
+// ─── SAVE WORD ────────────────────────────────────────────────
+function saveWord() {
+  if (!currentData || !currentWord) return;
+  
+  const exists = notebook.find(n => n.word.toLowerCase() === currentWord.toLowerCase());
+  if (exists) return;
+  
+  const typeMap = {'Verb':'verb','Adjective':'adj','Adverb':'adv','Conjunction':'conj','Other':'other'};
+  
+  const entry = {
+    word: currentWord,
+    tr: currentData.tr,
+    syn: currentData.syn,
+    mnemonic: currentData.mnemonic,
+    type: typeMap[currentData.type] || 'other',
+    unit: PASSAGES[currentUnit].title,
+    savedAt: Date.now()
+  };
+  
+  notebook.push(entry);
+  localStorage.setItem('rw_notebook', JSON.stringify(notebook));
+  
+  // Update UI
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.textContent = '✓ Kaydedildi!';
+  saveBtn.className = 'save-btn saved';
+  
+  // Mark word in text
+  document.querySelectorAll(`[data-w="${currentWord}"]`).forEach(el => {
+    el.classList.add('saved-' + entry.type);
+  });
+  
+  updateNbBadge();
+  updateDrawerCounts();
+  
+  setTimeout(closePopup, 700);
+}
+
+function updateNbBadge() {
+  const count = notebook.length;
+  const badge = document.getElementById('nbCount');
+  badge.style.display = count > 0 ? 'flex' : 'none';
+  badge.textContent = count;
+}
+
+function updateDrawerCounts() {
+  PASSAGES.forEach((p, i) => {
+    const el = document.getElementById('di-' + i);
+    if (!el) return;
+    const saved = notebook.filter(w => w.unit === p.title).length;
+    let countEl = el.querySelector('.di-count');
+    if (saved > 0) {
+      if (!countEl) {
+        countEl = document.createElement('div');
+        countEl.className = 'di-count';
+        el.appendChild(countEl);
+      }
+      countEl.textContent = saved + ' kelime kaydedildi';
+    } else if (countEl) {
+      countEl.remove();
+    }
+  });
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────
+function nextUnit() { if (currentUnit < PASSAGES.length-1) loadUnit(currentUnit+1); }
+function prevUnit() { if (currentUnit > 0) loadUnit(currentUnit-1); }
+
+// ─── DRAWER ───────────────────────────────────────────────────
+function openDrawer() { document.getElementById('drawer').classList.add('open'); }
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+
+// ─── NOTEBOOK ─────────────────────────────────────────────────
+function openNotebook() {
+  document.getElementById('notebook').classList.add('open');
+  switchNbTab(nbTab);
+}
+function closeNotebook() { document.getElementById('notebook').classList.remove('open'); }
+
+function switchNbTab(tab) {
+  nbTab = tab;
+  ['verb','adj','adv','conj','other'].forEach(t => {
+    const btn = document.getElementById('nbt-' + t);
+    btn.className = 'nb-tab' + (t === tab ? ' active-' + t : '');
+  });
+  renderNotebook();
+}
+
+function renderNotebook() {
+  const words = notebook.filter(w => w.type === nbTab);
+  const scroll = document.getElementById('nbScroll');
+  const quizBtn = document.getElementById('nbQuizBtn');
+  
+  quizBtn.style.display = words.length >= 2 ? 'block' : 'none';
+  
+  if (words.length === 0) {
+    scroll.innerHTML = `<div class="nb-empty"><div class="ne-icon">📭</div>Bu kategoride henüz kelime yok.<br>Okurken kelimelere tıkla ve deftere ekle!</div>`;
+    return;
+  }
+  
+  const typeLabel = {verb:'Fiil',adj:'Sıfat',adv:'Zarf',conj:'Bağlaç',other:'Diğer'};
+  scroll.innerHTML = `<div style="font-size:0.72rem;color:var(--text-dimmer);margin-bottom:10px;letter-spacing:1px">${words.length} ${typeLabel[nbTab].toUpperCase()} KAYDEDİLDİ</div>` +
+    words.map((w, i) => `
+    <div class="nb-card t-${w.type}" style="animation-delay:${i*0.04}s">
+      <button class="nb-delete" onclick="deleteWord(${notebook.indexOf(w)})">✕</button>
+      <div class="nc-word">${w.word}</div>
+      <div class="nc-tr">${w.tr}</div>
+      <div class="nc-syn">≈ ${w.syn.join(' · ')}</div>
+      <div class="nc-tip">${w.mnemonic}</div>
+      <div class="nc-from">📖 ${w.unit}</div>
+    </div>
+  `).join('');
+}
+
+function deleteWord(idx) {
+  notebook.splice(idx, 1);
+  localStorage.setItem('rw_notebook', JSON.stringify(notebook));
+  updateNbBadge();
+  updateDrawerCounts();
+  renderNotebook();
+}
+
+function clearNotebook() {
+  if (!confirm('Tüm kelimeler silinsin mi?')) return;
+  notebook = [];
+  localStorage.setItem('rw_notebook', JSON.stringify(notebook));
+  updateNbBadge();
+  updateDrawerCounts();
+  renderNotebook();
+}
+
+// ─── QUIZ ─────────────────────────────────────────────────────
+function startQuiz() {
+  const pool = notebook.filter(w => w.type === nbTab);
+  if (pool.length < 2) return;
+  quizScore = 0; quizTotal = 0;
+  document.getElementById('quizModal').classList.add('open');
+  const label = {verb:'FİİL',adj:'SIFAT',adv:'ZARF',conj:'BAĞLAÇ',other:'DİĞER'};
+  document.getElementById('qmLabel').textContent = label[nbTab] + ' QUİZİ';
+  nextQuizQ(pool);
+}
+
+function nextQuizQ(pool) {
+  const q = pool[Math.floor(Math.random() * pool.length)];
+  const wrong = pool.filter(w => w.tr !== q.tr).sort(() => Math.random()-0.5).slice(0,3).map(w => w.tr);
+  const opts = [...wrong, q.tr].sort(() => Math.random()-0.5);
+  
+  document.getElementById('qmWord').textContent = q.word;
+  document.getElementById('qmResult').textContent = '';
+  document.getElementById('qmScore').textContent = `Skor: ${quizScore}/${quizTotal}`;
+  document.getElementById('qmOpts').innerHTML = opts.map(o =>
+    `<button class="qm-opt" onclick="checkQ(this,\'${o.replace(/\'/g,"\\'")}\',...arguments[0], \'${q.tr.replace(/\'/g,"\\'")}\')">${o}</button>`
+  ).join('');
+  
+  // Fix onclick
+  document.querySelectorAll('.qm-opt').forEach(btn => {
+    const opt = btn.textContent.trim();
+    btn.onclick = () => checkQ(btn, opt, q.tr, pool);
+  });
+}
+
+function checkQ(btn, chosen, correct, pool) {
+  quizTotal++;
+  document.querySelectorAll('.qm-opt').forEach(b => b.onclick = null);
+  if (chosen === correct) {
+    btn.classList.add('correct');
+    document.getElementById('qmResult').textContent = '✅ Doğru!';
+    quizScore++;
+  } else {
+    btn.classList.add('wrong');
+    document.querySelectorAll('.qm-opt').forEach(b => { if(b.textContent.trim()===correct) b.classList.add('correct'); });
+    document.getElementById('qmResult').textContent = '❌ Doğrusu: ' + correct;
+  }
+  document.getElementById('qmScore').textContent = `Skor: ${quizScore}/${quizTotal}`;
+  setTimeout(() => nextQuizQ(pool), 1600);
+}
+
+function closeQuiz() { document.getElementById('quizModal').classList.remove('open'); }
+
+// ─── BOOT ─────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

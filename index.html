@@ -644,17 +644,18 @@ function clickWord(el) {
 }
 
 async function analyzeWord(word) {
-  // Yükleniyor ekranı
   document.getElementById('popType').className = 'popup-type type-loading';
-  document.getElementById('popType').textContent = 'Gemini analiz ediyor...';
-  document.getElementById('popBody').innerHTML = '<div class="popup-loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div><span>Gemini düşünüyor...</span></div>';
+  document.getElementById('popType').textContent = 'Analiz ediliyor...';
+  document.getElementById('popBody').innerHTML = '<div class="popup-loading"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div><span>Analiz ediliyor...</span></div>';
   document.getElementById('saveBtn').style.display = 'none';
 
-  // KENDİ GEMINI API ANAHTARINI BURAYA YAZ (Tırnaklar kalacak!)
-  const GEMINI_API_KEY = "AIzaSyBs0ubMlleVCeMtsE6tmchREJvAq-_kJiE"; 
+  // ── CLOUDFLARE WORKER URL ──────────────────────────────────────
+  // Worker kurulduktan sonra buraya yapıştır:
+  const WORKER_URL = "https://round-union-2d7f.muhammedmuse23.workers.dev";
+  // ──────────────────────────────────────────────────────────────
 
   const context = PASSAGES[currentUnit].text.substring(0, 500);
-  
+
   const prompt = `You are a vocabulary analysis assistant for Turkish students studying English. Analyze the word "${word}" as used in this academic text context:
 
 "${context}"
@@ -671,11 +672,8 @@ Return this exact JSON format:
 
 If the word should be skipped, return: {"type":"SKIP"}`;
 
-try {
-    // Senin panelinde yazan modeli (gemini-2.5-flash) kullanıyoruz
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const resp = await fetch(url, {
+  try {
+    const resp = await fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -683,17 +681,20 @@ try {
         generationConfig: { response_mime_type: "application/json" }
       })
     });
-    
-    const data = await resp.json();
-    
-    if (data.error) {
-       throw new Error(data.error.message);
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Worker hatası (${resp.status}): ${errText.substring(0, 200)}`);
     }
-    
+
+    const data = await resp.json();
+
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
     let text = data.candidates[0].content.parts[0].text;
     text = text.replace(/```json|```/g, '').trim();
     const result = JSON.parse(text);
-    
+
     if (result.type === 'SKIP') {
       document.getElementById('popBody').innerHTML = '<div class="popup-error">Bu kelime sınav için önemli değil.</div>';
       document.getElementById('popType').textContent = 'GEÇ';
@@ -701,16 +702,16 @@ try {
       document.getElementById('saveBtn').style.display = 'none';
       return;
     }
-    
+
     document.getElementById('saveBtn').style.display = '';
     currentData = { ...result, word: word.toLowerCase(), unit: PASSAGES[currentUnit].title };
-    
+
     const typeClass = {'Verb':'verb','Adjective':'adj','Adverb':'adv','Conjunction':'conj','Other':'other'}[result.type] || 'other';
     const typeLabel = {'Verb':'FİİL','Adjective':'SIFAT','Adverb':'ZARF','Conjunction':'BAĞLAÇ','Other':'DİĞER'}[result.type] || result.type;
-    
+
     document.getElementById('popType').className = 'popup-type type-' + typeClass;
     document.getElementById('popType').textContent = typeLabel;
-    
+
     const isSaved = notebook.find(n => n.word.toLowerCase() === word.toLowerCase());
     if (isSaved) {
       document.getElementById('saveBtn').textContent = '✓ Zaten Kaydedildi';
@@ -719,16 +720,20 @@ try {
       document.getElementById('saveBtn').textContent = '＋ Deftere Ekle';
       document.getElementById('saveBtn').className = 'save-btn';
     }
-    
+
     document.getElementById('popBody').innerHTML = `
       <div class="popup-tr">${result.tr}</div>
       <div class="popup-syn"><strong>Eş Anlamlı</strong><br>${result.syn.join(' · ')}</div>
       <div class="popup-mnemonic">${result.mnemonic}</div>
     `;
-    
+
   } catch(e) {
-    document.getElementById('popBody').innerHTML = '<div class="popup-error">HATA BİLGİSİ: ' + e.message + '</div>';
-    console.error("Gemini API Hatası:", e);
+    document.getElementById('popBody').innerHTML = `
+      <div class="popup-error">
+        ⚠️ ${e.message}<br><br>
+        <small>Worker URL ayarlı mı? Kod içinde WORKER_URL'yi güncelle.</small>
+      </div>`;
+    console.error("Worker Hatası:", e);
   }
 }
 function closePopup() {
